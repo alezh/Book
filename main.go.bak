@@ -1,0 +1,323 @@
+package main
+
+import (
+	"time"
+	"bytes"
+	"Book/dbmgo"
+	"Book/model"
+	"fmt"
+	"runtime"
+	"github.com/parnurzeal/gorequest"
+	"strconv"
+	"strings"
+	"encoding/xml"
+	"github.com/dlclark/regexp2"
+	"golang.org/x/net/html"
+	"net/http"
+)
+
+const (
+	WebUrl = "http://www.23us.so/top/lastupdate_"
+	Table = "BookInfo"
+	chapter = "Chapter"
+)
+
+type ListPage struct{
+	Htmlpage chan string
+	BookFace chan string
+	Article chan model.Article
+	chapter chan string
+	Index chan model.Index
+	BookInfo chan model.Index
+	GoToMongo chan model.BookDb
+	GotoChapterDb chan model.ChapterDb
+	page int
+}
+
+func init() {	
+    runtime.GOMAXPROCS(runtime.NumCPU()) // 多核多线程
+}
+
+func main(){
+	for a := 1;; a++{
+		url := WebUrl + strconv.Itoa(a) + ".html"
+		model.GetPage(url)
+		break
+	}
+	
+	// newListPage()
+}
+
+func newListPage(){
+	dbmgo.Init("127.0.0.1",27017,"BookDb")
+	list :=new(ListPage)
+	list.Htmlpage = make(chan string,500) //500本 缓存
+	list.Article = make(chan model.Article,300) //缓存20 书封面链接
+	list.Index = make(chan model.Index)//封面信息 
+	list.BookInfo = make(chan model.Index)//整本书
+	list.GoToMongo = make(chan model.BookDb) //存入mongod
+	list.GotoChapterDb = make(chan model.ChapterDb)
+	numDowner := 10
+	//获取书本
+	go func(){
+		for{			
+			list.ListHtml(<-list.Htmlpage)
+		}
+	}()
+	//获取书本封面
+	for i := 0; i < numDowner; i++ {
+		go func(){
+			for{
+				url := <-list.Article
+				list.HomePage(TCPConn(url.Url),url.Title)
+			}
+		}()
+	}
+	//获取每本的章节
+	go list.ChapterList();
+	//获取正文内容
+	go list.GetArticleBody();
+
+	go list.Inset()
+	
+	go list.InSetChap()
+
+	list.BodyUrl()
+	
+}
+
+//获取书架列表
+func (l *ListPage)BodyUrl(){
+	for a := 1;; a++{
+		url := WebUrl + strconv.Itoa(a) + ".html"
+		if x :=TCPConn(url); x != ""{
+			fmt.Println("page:"+strconv.Itoa(a))
+			l.Htmlpage <- x
+		}else{
+			break
+		}
+	}
+	close(l.Htmlpage)
+}
+
+func (l *ListPage)Inset(){
+	for{
+		if v,ok := <-l.GoToMongo; ok{
+			// x := dbmgo.Find(Table,"Title",v.Title,model.BookDb{})
+			// fmt.Println(v.Desc)
+			dbmgo.InsertSync(Table,v)
+		}		
+	}
+}
+func (l *ListPage)InSetChap(){
+	for{
+		if v,ok := <-l.GotoChapterDb; ok{
+			// fmt.Println(v)
+			dbmgo.InsertToDB(chapter,v)
+		}
+	}
+}
+
+//http conn
+func TCPConn(Url string) (html string){
+	LOOK:
+	request := gorequest.New()
+	_, body, errs := request.Get(Url).End()
+	if errs != nil{
+		fmt.Println(errs)
+		time.Sleep(10*1000*1000*1000)
+		goto LOOK
+	}else{
+		if body != ""{
+			html = body
+		}
+	}
+	return
+}
+
+func HttpConn(url string)(doc *html.Node){
+	LOOK:
+	resp, err := http.Get(url)
+	if err != nil {
+		fmt.Println(err.Error())
+		time.Sleep(10*1000*1000*1000)
+		goto LOOK
+	}
+	if resp.StatusCode != http.StatusOK {
+	   resp.Body.Close()
+	   fmt.Printf("getting %s: %s", url, resp.Status)
+	}
+	doc, err = html.Parse(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		fmt.Printf("pax resing %s as HTML: %v", url, err)
+	}
+	return
+}
+
+//获取封面信息
+func (l *ListPage)HomePage(body string,title string)(index model.Index){
+	index.Title = title
+	regex := `<a class="read" href=(.*?)</a>`
+	regex1 := `<th>小说作者</th>\n<td>&nbsp;(?<name>.*?)</td>`
+	for a:=0;a<2;a++{
+		read := regexp2.MustCompile(regex,1)
+		if a == 1{
+			read = regexp2.MustCompile(regex1,1)
+		}
+		if isMatch, err := read.FindStringMatch(body); isMatch != nil {
+			index.Author = isMatch.Groups()[1].String();
+			if href,_ :=GetHref(isMatch.String());href !=""{
+				index.ArticleUrl = href
+			}
+		}else{
+			fmt.Println(err.Error())
+		}
+	}
+	l.Index <- index
+	return
+}
+
+//书架列表 正则
+func (l *ListPage)ListHtml(body string)(){
+	var box model.Article
+	// r, _ := regexp.Compile("<a(.*?)href=(.*?)</a>")
+	// r := regexp.MustCompile(`<td class="L"><a[^>]+[(href)|(HREF)]\s*\t*\n*=\s*\t*\n*[(".+")|('.+')][^>]*>[^<]*</a>`)
+	re := regexp2.MustCompile(`<td .*?><a(?![^<>]*?title[^<>]*?>).*?></td>`,0)
+	if isMatch, _ := re.FindStringMatch(body); isMatch != nil {
+		href,title :=GetHref(isMatch.String())
+		box.Url = href
+		box.Title = title
+		l.Article <- box
+		LOOK:
+		if Match, _ := re.FindNextMatch(isMatch);Match !=nil{
+			isMatch = Match			
+			href,title := GetHref(Match.String())
+			box.Url = href
+			box.Title = title
+			l.Article <- box
+			goto LOOK
+		}
+	}else{
+		fmt.Println(body)
+	}
+}
+
+//获取章节
+func (l *ListPage)ChapterList(){
+	for{
+		if index,ok := <-l.Index; ok{
+			body := TCPConn(index.ArticleUrl)
+			index.Chapter = GetChapter(body)
+			l.BookInfo <-index
+		}
+		
+	}
+}
+//获取章节正则
+func GetChapter(body string)(Chapter []model.IndexUrl){
+	var chap model.IndexUrl
+	re := regexp2.MustCompile(`<td .*?><a(?![^<>]*?title[^<>]*?>).*?></td>`,0)
+	if isMatch, err := re.FindStringMatch(body); isMatch != nil {
+		href,title :=GetHref(isMatch.String())
+		chap.Chapter = title
+		chap.ChapterUrl = href
+		Chapter = append(Chapter,chap)
+		LOOK:
+		if Match, _ := re.FindNextMatch(isMatch);Match !=nil{
+			isMatch = Match			
+			href,title :=GetHref(Match.String())
+			chap.Chapter = title
+			chap.ChapterUrl = href
+			Chapter = append(Chapter,chap)
+			goto LOOK
+		}
+	}else{
+		fmt.Println(err.Error())
+	}
+	return
+}
+
+//获取正文并且重构对象
+func (l *ListPage)GetArticleBody(){
+	for{
+		if v,ok := <-l.BookInfo; ok{
+			go l.Getbody(v)
+			var book model.BookDb
+			book.Author = v.Author
+			book.Desc = v.Desc
+			book.Title = v.Title
+			l.GoToMongo <-book
+		}
+	}	
+}
+//获取详情
+func (l *ListPage)Getbody(v model.Index){
+	for i:=0;i<len(v.Chapter);i++{
+		doc := HttpConn(v.Chapter[i].ChapterUrl)
+		var info model.ChapterDb
+		info.Sort = i
+		info.Author = v.Author
+		info.Title = v.Title
+		info.Body = GetText("",doc)
+		info.Chapter = v.Chapter[i].Chapter
+		l.GotoChapterDb <-info
+	}
+}
+
+//解析URL
+func GetHref(atag string) (href,content string) {
+    inputReader := strings.NewReader(atag)
+    decoder := xml.NewDecoder(inputReader)
+    for t, err := decoder.Token(); err == nil; t, err = decoder.Token() {
+        switch token := t.(type) {
+        // 处理元素开始（标签）
+        case xml.StartElement:
+            for _, attr := range token.Attr {
+                attrName := attr.Name.Local
+                attrValue := attr.Value
+                if(strings.EqualFold(attrName,"href") || strings.EqualFold(attrName,"HREF")){
+                    href = attrValue
+                }
+            }
+        // 处理元素结束（标签）
+        case xml.EndElement:
+        // 处理字符数据（这里就是元素的文本）
+        case xml.CharData:
+            content = string([]byte(token))
+        default:
+            href = ""
+            content = ""
+        }
+    }
+    return href, content
+}
+
+func GetText(str string,n *html.Node)string{
+	var has = false
+	var buf bytes.Buffer
+	if n.Type == html.ElementNode && n.Data == "dd" {
+		for _, a := range n.Attr {
+		   if a.Key== "id" && a.Val == "contents" {
+			has = true
+			parseTest(&buf,n)
+			str = buf.String()
+			return str
+		   }
+		}
+	 }
+	 if !has{
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			str = GetText(str,c)
+		 }
+	 }
+	 return str
+}
+
+func parseTest(buf *bytes.Buffer,n *html.Node){
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if c.Data != "br"{
+			buf.WriteString(c.Data+"\n")
+		}
+	 }
+}
