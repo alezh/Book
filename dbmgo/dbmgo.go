@@ -25,6 +25,7 @@ func Init(ip string, port int, dbname string) {
 func InsertSync(table string, pData interface{}) bool {
 	fmt.Println(g_database)
 	coll := g_database.C(table)
+	fmt.Println(coll.Name);
 	err := coll.Insert(pData)
 	if err != nil {
 		fmt.Printf("InsertSync error: %v \r\ntable: %s \r\n", err.Error(), table)

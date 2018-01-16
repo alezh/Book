@@ -3,7 +3,9 @@ package main
 import (
 	"Book/model"
 	"runtime"
-	"strconv"
+	//"strconv"
+	//"time"
+	//"fmt"
 )
 const (
 	WebUrl = "http://www.23us.so/top/lastupdate_"
@@ -19,9 +21,10 @@ func init(){
 }
 
 func main(){
-	for a := 1;; a++{
-		url := WebUrl + strconv.Itoa(a) + ".html"
-		model.GetPage(url)
-		break
-	}
+	model.PbTxtInfo()
+	//for a := 1;; a++{
+	//	url := WebUrl + strconv.Itoa(a) + ".html"
+	//	model.GetPage(url)
+	//	break
+	//}
 }

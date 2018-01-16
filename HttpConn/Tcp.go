@@ -72,14 +72,18 @@ func GetNode(url string)*goquery.Document{
 // return *Node
 func HttpToSelect(url string)(doc *Documents){
 	LOOK:
+	client := &http.Client{}
 	req, _ := http.NewRequest("GET", url, nil)	
 	req.Header.Add("cache-control", "no-cache")	
-	resp, err := http.DefaultClient.Do(req)	
-	// resp, err := http.Get(url)
+	resp, err := client.Do(req)	
+	// resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		fmt.Println(err.Error())
+		req.Body.Close()
+		resp.Body.Close()
 		goto LOOK // Err Try again
 	}
+	req.Body.Close()
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 	   fmt.Printf("Try again getting %s: %s", url, resp.Status)
