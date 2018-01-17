@@ -34,9 +34,11 @@ func TCPConn(Url string) (html string){
 // return *Node
 func HttpConn(url string)(doc *html.Node){
 	LOOK:
+		client := &http.Client{}
 	req, _ := http.NewRequest("GET", url, nil)	
-	req.Header.Add("cache-control", "no-cache")	
-	resp, err := http.DefaultClient.Do(req)	
+	req.Header.Add("cache-control", "no-cache")
+	resp, err := client.Do(req)
+	//resp, err := http.DefaultClient.Do(req)
 	// resp, err := http.Get(url)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -68,30 +70,31 @@ func GetNode(url string)*goquery.Document{
 	return doc
 }
 
-
-// return *Node
-func HttpToSelect(url string)(doc *Documents){
-	LOOK:
+func GetSelect(url string) *goquery.Document{
+LOOK:
 	client := &http.Client{}
-	req, _ := http.NewRequest("GET", url, nil)	
-	req.Header.Add("cache-control", "no-cache")	
-	resp, err := client.Do(req)	
-	// resp, err := http.DefaultClient.Do(req)
+	req, _ := http.NewRequest("GET", url, nil)
+	req.Header.Add("cache-control", "no-cache")
+	resp, err := client.Do(req)
+	//resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		fmt.Println(err.Error())
 		req.Body.Close()
 		resp.Body.Close()
 		goto LOOK // Err Try again
 	}
-	req.Body.Close()
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-	   fmt.Printf("Try again getting %s: %s", url, resp.Status)
-	   goto LOOK
+		fmt.Printf("Try again getting %s: %s", url, resp.Status)
+		req.Body.Close()
+		resp.Body.Close()
 	}
-	doc.Node, err = html.Parse(resp.Body)
+	doc, err := goquery.NewDocumentFromResponse(resp)
 	if err != nil {
 		fmt.Printf("pax resing %s as HTML: %v", url, err)
+		req.Body.Close()
+		resp.Body.Close()
 	}
-	return
+	return doc
 }
+

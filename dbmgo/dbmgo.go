@@ -23,9 +23,7 @@ func Init(ip string, port int, dbname string) {
 }
 
 func InsertSync(table string, pData interface{}) bool {
-	fmt.Println(g_database)
 	coll := g_database.C(table)
-	fmt.Println(coll.Name);
 	err := coll.Insert(pData)
 	if err != nil {
 		fmt.Printf("InsertSync error: %v \r\ntable: %s \r\n", err.Error(), table)
@@ -112,3 +110,65 @@ func _find_sort(table, sortKey string, cnt int, pList interface{}) {
 		}
 	}
 }
+
+func Aggregation(table string){
+	coll := g_database.C(table)
+	match := bson.M{"$match": bson.M{ "title": "巫师进化手札" } }
+	group := bson.M{"$group": bson.M{
+		                     "_id": "$title",
+		                     "count": bson.M{ "$sum": 1 },
+		                     "title": bson.M{ "$first": "$title" },
+		                     "author": bson.M{ "$first": "$author" },
+		                     "url": bson.M{ "$first": "$url" },
+		                     "name": bson.M{ "$first": "$name" },
+		                     },
+		           }
+	out := bson.M{"$out":"SortOnly"}
+	pipeline :=  []bson.M{match, group,out}
+	err := coll.Pipe(pipeline).Iter().Done()
+	fmt.Println(err)
+}
+
+func Aggregate(table string ,search []bson.M, pSlice interface{}){
+	coll := g_database.C(table)
+	//pipeline :=  []bson.M{match, group,out}
+	err := coll.Pipe(search).All(pSlice)
+	if err != nil{
+		fmt.Println(err.Error())
+	}
+}
+
+
+//func test()  {
+//	pipeline := []bson.M{
+//		bson.M{
+//			"$match": bson.M{ "transactiontype": transactiontype },
+//		},
+//		bson.M{
+//			"$group": bson.M{
+//				"_id": bson.M{
+//					"year": bson.M{ "$year": "$transactiondate" },
+//					"dayOfYear": bson.M{ "$dayOfYear": "$transactiondate" },
+//				},
+//				"totalamount": bson.M{ "$sum": "$qty" },
+//				"count": bson.M{ "$sum": 1 },
+//				"date": bson.M{ "$first": "$transactiondate"},
+//			},
+//		},
+//		bson.M{
+//			"$project": bson.M{
+//				"_id": 0,
+//				"totalamount": 1,
+//				"dayOfYear": "$_id.dayOfYear",
+//				"actualyear": bson.M{ "$substr": []interface{}{ "$_id.year", 0, 4 } },
+//				"transactiondate": bson.M{
+//					"$dateToString": bson.M{ "format": "%Y-%m-%d %H:%M", "date": "$date" },
+//				},
+//				"count": 1,
+//			},
+//		},
+//	}
+//	coll := g_database.C(table)
+//	pipe := coll.Pipe(pipeline)
+//	fmt.Println(pipe)
+//}
