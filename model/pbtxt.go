@@ -21,7 +21,10 @@ const (
 )
 
 var Sort []*Classification
-
+var chanSort chan []*library.Sort
+var chanBookCover chan *library.BookCover //书本封面
+var thread int
+var UnDesc string
 
 //初始化分类
 func init(){
@@ -33,6 +36,10 @@ func init(){
 		Class.Class = sort[k]
 		Sort = append(Sort,&Class)
 	}
+	chanSort = make(chan []*library.Sort,4)
+	chanBookCover = make(chan *library.BookCover,50)
+	thread  = 4
+	UnDesc = "最新章节推荐地址"
 }
 
 type Pbtxt struct{
@@ -51,6 +58,9 @@ func PbTxtInfo() (info Pbtxt){
 	info.Sort = Sort
 	info.CacheSort = make(chan *library.Sort)
 	go info.sortSave()
+	for a := 0;a<thread; a++{
+
+	}
 	return
 }
 //sort去重
@@ -96,15 +106,22 @@ func (info *Pbtxt)GetSort(){
 //截取字符串
 func getStringName(f string,text string,l string) string{
 	text = strings.TrimSpace(text)
-	if i := strings.LastIndex(text,f);i>0{
-		if l != ""{
-			if k := strings.LastIndex(text,l);k>0{
-				c := text[i+len(f):k]
-				return c
+	if f!= ""{
+		if i := strings.LastIndex(text,f);i>0{
+			if l != ""{
+				if k := strings.LastIndex(text,l);k>0{
+					c := text[i+len(f):k]
+					return c
+				}
 			}
+			c := text[i+len(f):]
+			return c
 		}
-		c := text[i+len(f):]
-		return c
+	}else{
+		if k := strings.LastIndex(text,l);k>0{
+			c := text[:k]
+			return c
+		}
 	}
 	return text
 }
@@ -121,17 +138,32 @@ func GetCover(){
 	pageSize := 100
 	//向上取整
 	key := int(math.Ceil(float64(count)/float64(pageSize)))
-	fmt.Println(key)
 	for i:=1;i<=key;i++{
 		var Sort []*library.Sort
 		dbmgo.Paginate("SortOnly",bson.M{},"-count",i,pageSize,&Sort)
-		fmt.Println(Sort)
+		logicCover(Sort)
 		break
 	}
 }
 //下载书籍
 func logicCover(Sort []*library.Sort){
-	for value := range Sort{
-
+	for _,value := range Sort{
+		var bookCover library.BookCover
+		var orignaUrl library.OriginalUrl
+		doc := HttpConn.GetSelect(value.Url)
+		bookCover.Author = value.Author
+		bookCover.Title = value.Title
+		bookCover.Status = "连载中"
+		if coverImg ,err := doc.Find("div .block_img2 img").Attr("src");err{
+			bookCover.CoverImg = coverImg
+		}
+		bookCover.Sort = value.Name
+		bookCover.Desc = getStringName("",doc.Find("div .intro_info").Text(),UnDesc)
+		orignaUrl.Name = value.Name
+		if url,err :=doc.Find("span .margin_right a").Attr("href");err{
+			orignaUrl.Url = url
+		}
+		bookCover.CatalogUrl = &orignaUrl
+		chanBookCover <- &bookCover
 	}
 }

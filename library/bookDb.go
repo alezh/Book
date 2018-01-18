@@ -19,6 +19,7 @@ type BookCover struct {
 	Title        string //书名
 	Author       string //作者
 	CatalogUrl  *OriginalUrl //目录链接
+	Status       string  //已完结  连载中
 	Desc         string //简介
 	CoverImg     string //封面图片
 	NewChapter   string //最新的章节
