@@ -26,12 +26,6 @@ func main(){
 	//写入分类也书籍
 	info := model.PbTxtInfo()
 	info.GetSort()
-	//读取数据测试
-	//data := library.Sort{}
-	//err :=dbmgo.Find("Sort","title","巫师进化手札",&data)
-	//if err {
-	//	fmt.Println(data)
-	//}
 	//for a := 1;; a++{
 	//	url := WebUrl + strconv.Itoa(a) + ".html"
 	//	model.GetPage(url)
