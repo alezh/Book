@@ -111,11 +111,24 @@ func _find_sort(table, sortKey string, cnt int, pList interface{}) {
 	}
 }
 
+func Paginate(table string, search bson.M, orderBy string, skip ,limit int, pSlice interface{}){
+	coll := g_database.C(table)
+	err := coll.Find(search).Sort(orderBy).Skip(limit*(skip-1)).Limit(limit).All(pSlice)
+	if err != nil {
+		if err == mgo.ErrNotFound {
+			fmt.Printf("Not Find table: %s  findall: %v", table, search)
+		} else {
+			fmt.Println(err.Error())
+		}
+	}
+}
+
+
 func Aggregation(table string){
 	coll := g_database.C(table)
-	match := bson.M{"$match": bson.M{ "title": "巫师进化手札" } }
+	//match := bson.M{"$match": bson.M{ "title": "巫师进化手札" } }
 	group := bson.M{"$group": bson.M{
-		                     "_id": "$title",
+		                     "_id": bson.M{"title":"$title","author":"$author"},
 		                     "count": bson.M{ "$sum": 1 },
 		                     "title": bson.M{ "$first": "$title" },
 		                     "author": bson.M{ "$first": "$author" },
@@ -124,7 +137,7 @@ func Aggregation(table string){
 		                     },
 		           }
 	out := bson.M{"$out":"SortOnly"}
-	pipeline :=  []bson.M{match, group,out}
+	pipeline :=  []bson.M{group,out}
 	err := coll.Pipe(pipeline).Iter().Done()
 	fmt.Println(err)
 }

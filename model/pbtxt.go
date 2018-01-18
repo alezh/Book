@@ -80,13 +80,10 @@ func (info *Pbtxt)GetSort(){
 					sort.Url = webUrl + url
 					info.CacheSort <- &sort
 				})
-			//暂停循环
-			//break
 		}
-		//暂停循环
-		//break
 	}
-	close(info.CacheSort)
+	defer close(info.CacheSort)
+	defer Distinct()
 	return
 }
 
@@ -112,4 +109,12 @@ func (info *Pbtxt)sortSave(){
 		dbmgo.InsertToDB("Sort",v)
 	}
 }
+//sort去重
+func Distinct(){
+	dbmgo.Aggregation("Sort")
+}
 
+
+func GetCover(){
+
+}
