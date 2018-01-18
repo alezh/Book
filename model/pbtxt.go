@@ -115,9 +115,9 @@ func (info *Pbtxt)sortSave(){
 		dbmgo.InsertToDB("Sort",v)
 	}
 }
-
+//分页去除分类书籍
 func GetCover(){
-	count :=dbmgo.Count("SortOnly")
+	count := dbmgo.Count("SortOnly")
 	pageSize := 100
 	//向上取整
 	key := int(math.Ceil(float64(count)/float64(pageSize)))
@@ -127,5 +127,11 @@ func GetCover(){
 		dbmgo.Paginate("SortOnly",bson.M{},"-count",i,pageSize,&Sort)
 		fmt.Println(Sort)
 		break
+	}
+}
+//下载书籍
+func logicCover(Sort []*library.Sort){
+	for value := range Sort{
+
 	}
 }
