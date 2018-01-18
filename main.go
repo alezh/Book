@@ -3,9 +3,6 @@ package main
 import (
 	"runtime"
 	"Book/dbmgo"
-	"Book/library"
-	"fmt"
-	"gopkg.in/mgo.v2/bson"
 	"Book/model"
 )
 const (
