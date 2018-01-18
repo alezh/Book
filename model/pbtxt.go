@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"Book/dbmgo"
 	"fmt"
+	"gopkg.in/mgo.v2/bson"
 )
 
 const (
@@ -51,6 +52,10 @@ func PbTxtInfo() (info Pbtxt){
 	go info.sortSave()
 	return
 }
+//sort去重
+func Distinct(){
+	dbmgo.Aggregation("Sort")
+}
 //logic——————————————————————————————————————————————————————————————————————————————————————————————————————————————
 
 //获取分类
@@ -82,7 +87,7 @@ func (info *Pbtxt)GetSort(){
 				})
 		}
 	}
-	defer close(info.CacheSort)
+	close(info.CacheSort)
 	defer Distinct()
 	return
 }
@@ -109,12 +114,15 @@ func (info *Pbtxt)sortSave(){
 		dbmgo.InsertToDB("Sort",v)
 	}
 }
-//sort去重
-func Distinct(){
-	dbmgo.Aggregation("Sort")
-}
-
 
 func GetCover(){
-
+	count :=dbmgo.Count("SortOnly")
+	pageSize := 100
+	fmt.Println(count/pageSize)
+	for i:=1;i<=(count/pageSize);i++{
+		var Sort []*library.Sort
+		dbmgo.Paginate("SortOnly",bson.M{},"-count",i,pageSize,&Sort)
+		fmt.Println(Sort)
+		break
+	}
 }

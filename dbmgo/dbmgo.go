@@ -111,6 +111,14 @@ func _find_sort(table, sortKey string, cnt int, pList interface{}) {
 	}
 }
 
+func Count(table string) int{
+	coll := g_database.C(table)
+	if i,err := coll.Count(); err == nil{
+		return i
+	}
+	return 0
+}
+
 func Paginate(table string, search bson.M, orderBy string, skip ,limit int, pSlice interface{}){
 	coll := g_database.C(table)
 	err := coll.Find(search).Sort(orderBy).Skip(limit*(skip-1)).Limit(limit).All(pSlice)
