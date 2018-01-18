@@ -9,6 +9,7 @@ import (
 	"Book/dbmgo"
 	"fmt"
 	"gopkg.in/mgo.v2/bson"
+	"math"
 )
 
 const (
@@ -118,8 +119,10 @@ func (info *Pbtxt)sortSave(){
 func GetCover(){
 	count :=dbmgo.Count("SortOnly")
 	pageSize := 100
-	fmt.Println(count/pageSize)
-	for i:=1;i<=(count/pageSize);i++{
+	//向上取整
+	key := int(math.Ceil(float64(count)/float64(pageSize)))
+	fmt.Println(key)
+	for i:=1;i<=key;i++{
 		var Sort []*library.Sort
 		dbmgo.Paginate("SortOnly",bson.M{},"-count",i,pageSize,&Sort)
 		fmt.Println(Sort)
