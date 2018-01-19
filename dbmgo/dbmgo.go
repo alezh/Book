@@ -132,7 +132,7 @@ func Paginate(table string, search bson.M, orderBy string, skip ,limit int, pSli
 }
 
 
-func Aggregation(table string){
+func Aggregation(table, outTable string){
 	coll := g_database.C(table)
 	//match := bson.M{"$match": bson.M{ "title": "巫师进化手札" } }
 	group := bson.M{"$group": bson.M{
@@ -144,7 +144,7 @@ func Aggregation(table string){
 		                     "name": bson.M{ "$first": "$name" },
 		                     },
 		           }
-	out := bson.M{"$out":"SortOnly"}
+	out := bson.M{"$out":outTable}
 	pipeline :=  []bson.M{group,out}
 	err := coll.Pipe(pipeline).Iter().Done()
 	fmt.Println(err)

@@ -21,8 +21,9 @@ func init(){
 
 func main(){
 	//写入分类也书籍
-	info := model.PbTxtInfo()
-	info.GetSort()
+	//info := model.PbTxtInfo()
+	//info.GetSort()
+	model.GetCover()
 	//for a := 1;; a++{
 	//	url := WebUrl + strconv.Itoa(a) + ".html"
 	//	model.GetPage(url)

@@ -25,8 +25,8 @@ type BookCover struct {
 	NewChapter   string //最新的章节
 	ChapterId    string //章节管理ID
 	Sort         string //分类
-	Created      int //创建时间戳
-	Updated      int //更新时间戳
+	Created      int64 //创建时间戳
+	Updated      int64 //更新时间戳
 }
 //站名与链接
 type OriginalUrl struct {
