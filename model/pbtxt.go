@@ -147,7 +147,7 @@ func bookCoverSave(){
 	}
 }
 
-//多线程叠加抓取 大流量
+//多线程叠加抓取 大流量 N+N
 //func bookCoverSave(){
 //	for {
 //		select{
@@ -189,6 +189,7 @@ func bookCoverFour(){
 		logicCover(v)
 	}
 }
+
 //拆分数组给 channel
 func multipleThread(Sort []*library.Sort){
 	length := len(Sort)
