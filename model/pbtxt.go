@@ -140,53 +140,28 @@ func (info *Pbtxt)sortSave(){
 	}
 }
 
-func bookCoverSave(){
-	for {
-		v := <- chanBookCover
-		dbmgo.InsertToDB("BookCover",v)
-	}
-}
-
-//多线程叠加抓取 大流量 N+N
 //func bookCoverSave(){
 //	for {
-//		select{
-//		case v:=<- chanBookCover :
-//			dbmgo.InsertToDB("BookCover",v)
-//		case a := <- coverOne:
-//			go logicCover(a)
-//		case b := <- coverTwo:
-//			go logicCover(b)
-//		case c := <- coverThree:
-//			go logicCover(c)
-//		case d := <- coverFour:
-//			go logicCover(d)
-//		}
+//		v := <- chanBookCover
+//		dbmgo.InsertToDB("BookCover",v)
 //	}
 //}
 
-func bookCoverOne(){
+//多线程叠加抓取 大流量 N+N
+func bookCoverSave(){
 	for {
-		v := <- coverOne
-		logicCover(v)
-	}
-}
-func bookCoverTwo(){
-	for {
-		v := <- coverTwo
-		logicCover(v)
-	}
-}
-func bookCoverThree(){
-	for {
-		v := <- coverThree
-		logicCover(v)
-	}
-}
-func bookCoverFour(){
-	for {
-		v := <- coverFour
-		logicCover(v)
+		select{
+		case v:=<- chanBookCover :
+			dbmgo.InsertToDB("BookCover",v)
+		case a := <- coverOne:
+			go logicCover(a)
+		case b := <- coverTwo:
+			go logicCover(b)
+		case c := <- coverThree:
+			go logicCover(c)
+		case d := <- coverFour:
+			go logicCover(d)
+		}
 	}
 }
 
@@ -231,10 +206,6 @@ func multipleThread(Sort []*library.Sort){
 func GetCover(){
 	fmt.Println("抓取书籍封面")
 	go bookCoverSave()
-	go bookCoverOne()
-	go bookCoverTwo()
-	go bookCoverThree()
-	go bookCoverFour()
 	count := dbmgo.Count("SortOnly")
 	pageSize := 100
 	//向上取整
