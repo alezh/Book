@@ -8,6 +8,11 @@ import (
 	"golang.org/x/net/html"
 	"github.com/PuerkitoBio/goquery"
 	lib "Book/library"
+	"net"
+	"time"
+	"golang.org/x/net/http2"
+	"crypto/tls"
+	"context"
 )
 
 type Documents struct{
@@ -39,7 +44,6 @@ func HttpConn(url string)(doc *html.Node){
 	req.Header.Add("cache-control", "no-cache")
 	resp, err := client.Do(req)
 	//resp, err := http.DefaultClient.Do(req)
-	// resp, err := http.Get(url)
 	if err != nil {
 		fmt.Println(err.Error())
 		goto LOOK // Err Try again
@@ -62,39 +66,143 @@ func GetNode(url string)*goquery.Document{
 	if err!=nil{
 		fmt.Println(err)
 	}
-	// 	doc.Find(".sidebar-reviews article .content-block").Each(
-	// 		func(_ int,s *goquery.Selection) { //获取节点集合并遍历
-	// 		text:=s.Find("a").Text() //获取匹配节点的文本值
-	// 		fmt.Println(text)
-	//    })
 	return doc
 }
 
-func GetSelect(url string) *goquery.Document{
-LOOK:
-	client := &http.Client{}
+func GetSelect(url string) (*goquery.Document,bool){
+	client := &http.Client{
+		Transport: &http.Transport{
+			Dial: func(netw, addr string) (net.Conn, error) {
+				deadline := time.Now().Add(5 * time.Second)
+				c, err := net.DialTimeout(netw, addr, time.Second*5)
+				if err != nil {
+					return nil, err
+				}
+				c.SetDeadline(deadline)
+				return c, nil
+			},
+		},
+	}
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Add("cache-control", "no-cache")
 	resp, err := client.Do(req)
-	//resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		fmt.Println(err.Error())
-		req.Body.Close()
-		resp.Body.Close()
-		goto LOOK // Err Try again
+		defer resp.Body.Close()
+		return nil,false
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		fmt.Printf("Try again getting %s: %s", url, resp.Status)
-		req.Body.Close()
-		resp.Body.Close()
+		return nil,false
 	}
 	doc, err := goquery.NewDocumentFromResponse(resp)
 	if err != nil {
 		fmt.Printf("pax resing %s as HTML: %v", url, err)
-		req.Body.Close()
-		resp.Body.Close()
+		return nil,false
 	}
-	return doc
+	return doc,true
 }
 
+func HttpsRequest(url string)(*goquery.Document,bool){
+	tr := &http2.Transport{
+		AllowHTTP: true, //充许非加密的链接
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+	httpClient := http.Client{Transport: tr}
+	ctx, cancel := context.WithCancel(context.TODO())
+	time.AfterFunc(5*time.Second, func() {
+		fmt.Println("this url timeout " + url)
+		cancel()
+	})
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil,false
+	}
+	req = req.WithContext(ctx)
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil,false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		fmt.Println("resp StatusCode:", resp.StatusCode)
+		return nil,false
+	}
+	doc, err := goquery.NewDocumentFromResponse(resp)
+	if err != nil {
+		return nil,false
+	}
+	return doc,true
+}
+
+func HttpRequest(url string)(*goquery.Document ,bool){
+	client := &http.Client{
+		Transport: &http.Transport{
+			Dial: (&net.Dialer{
+				Timeout:   5 * time.Second,
+				//KeepAlive: 5 * time.Second,
+			}).Dial,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil , false
+	}
+	req.Header.Add("cache-control", "no-cache")
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("Try again  %s", url)
+		return nil , false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("Try again getting %s: %s", url, resp.Status)
+		return nil , false
+	}
+	doc, err := goquery.NewDocumentFromResponse(resp)
+	if err != nil {
+		fmt.Printf("pax resing %s as HTML: %v", url, err)
+		return nil , false
+	}
+	return doc,true
+}
+
+func TestHttpRequest(url string)(*goquery.Document ,bool) {
+	httpClient := http.Client{}
+	ctx, cancel := context.WithCancel(context.TODO())
+	timer := time.AfterFunc(5 * time.Second, func() {
+		fmt.Println("this url timeout " + url)
+		cancel()
+	})
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil,false
+	}
+	req = req.WithContext(ctx)
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil,false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		fmt.Println("resp StatusCode:", resp.StatusCode)
+		return nil,false
+	}
+	timer.Stop()
+	doc, err := goquery.NewDocumentFromResponse(resp)
+	if err != nil {
+		return nil,false
+	}
+	return doc,true
+}

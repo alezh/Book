@@ -67,6 +67,21 @@ func Find(table, key string, value, pData interface{}) bool {
 	return true
 }
 
+func Finds(table string, search bson.M, pData interface{}) bool {
+	coll := g_database.C(table)
+	err := coll.Find(search).One(pData)
+	if err != nil {
+		if err == mgo.ErrNotFound {
+			fmt.Printf("Not Find table: %s ", table)
+		} else {
+			fmt.Printf("Find error: %v \r\ntable: %s \r\n",
+				err.Error(), table)
+		}
+		return false
+	}
+	return true
+}
+
 /*
 =($eq)		bson.M{"name": "Jimmy Kuu"}
 !=($ne)		bson.M{"name": bson.M{"$ne": "Jimmy Kuu"}}

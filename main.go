@@ -20,10 +20,13 @@ func init(){
 }
 
 func main(){
+	var pbtxt model.PbTxtLogic
+	pbtxt.Main()
+	pbtxt.GetLastUpdate()
 	//写入分类也书籍
 	//info := model.PbTxtInfo()
 	//info.GetSort()
-	model.GetCover()
+	//model.GetCover()
 	//for a := 1;; a++{
 	//	url := WebUrl + strconv.Itoa(a) + ".html"
 	//	model.GetPage(url)

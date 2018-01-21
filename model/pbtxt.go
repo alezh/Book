@@ -16,6 +16,7 @@ import (
 const (
 	//爬虫抓取 网站地址
 	webUrl   = "http://m.pbtxt.com"
+	lastUpdate ="http://m.pbtxt.com/top-lastupdate-"
 	//分类
 	// ["xuanhuan","xiuzhen","wuxia","lishi","dushi","game","kehuan","kongbu","chuanyue","yanqing","xiaoyuan"]
 	//玄幻|奇幻|修真|武侠|历史|都市|网游|科幻|恐怖|穿越|言情|校园
@@ -29,6 +30,9 @@ var coverOne chan []*library.Sort
 var coverTwo chan []*library.Sort
 var coverThree chan []*library.Sort
 var coverFour chan []*library.Sort
+var CacheSort chan *library.Sort
+var countChannel chan int
+var countX int
 
 //初始化分类
 func init(){
@@ -40,20 +44,22 @@ func init(){
 		Class.Class = sort[k]
 		Sort = append(Sort,&Class)
 	}
-	chanBookCover = make(chan *library.BookCover,10)
+	chanBookCover = make(chan *library.BookCover,500)
 	coverOne = make(chan []*library.Sort,0)
 	coverTwo = make(chan []*library.Sort,0)
 	coverThree = make(chan []*library.Sort,0)
 	coverFour = make(chan []*library.Sort,0)
+	CacheSort = make(chan *library.Sort)
 	thread  = 4
 	UnDesc = "最新章节推荐地址"
+	countChannel = make(chan int ,1)
+	countX = 0
 
 }
 
 type Pbtxt struct{
 	WebUrl string
 	Sort   []*Classification
-	CacheSort chan *library.Sort
 }
 
 type Classification struct{
@@ -64,8 +70,7 @@ type Classification struct{
 func PbTxtInfo() (info Pbtxt){
 	info.WebUrl = webUrl
 	info.Sort = Sort
-	info.CacheSort = make(chan *library.Sort)
-	go info.sortSave()
+	go sortSave()
 	return
 }
 //sort去重
@@ -78,36 +83,67 @@ func Distinct(){
 //获取分类
 func (info *Pbtxt)GetSort(){
 	fmt.Println("抓取书籍分类")
-	var err error
+	var erro error
 	for _,v := range info.Sort{
 		sum := 1
 		for a := 0;a<=sum; a++{
-			doc := HttpConn.GetSelect(webUrl + v.Class + strconv.Itoa(a) + ".html")
-			var Selection library.Regexh
+			if doc,err := HttpConn.GetSelect(webUrl + v.Class + strconv.Itoa(a) + ".html");err{
+				var Selection library.Regexh
+				if sum == 1{
+					if sum , erro = strconv.Atoi(getStringName("0/",doc.Text(),"页)")); erro != nil{
+						fmt.Println("页码获取错误")
+						//暂停循环
+						break
+					}
+				}
+				Selection.Selection = doc.Find("p")
+				Selection.Selection.Each(
+					func(_ int, selection *goquery.Selection) {
+						var sort library.Sort
+						sort.Name = v.Name
+						sort.Author = getStringName("/",selection.Text(),"")
+						html := selection.Find("a")
+						sort.Title = html.Text()
+						url,_ := html.Attr("href")
+						sort.Url = webUrl + url
+						CacheSort <- &sort
+					})
+			}
+
+		}
+	}
+	close(CacheSort)
+	defer Distinct()
+	return
+}
+
+func GetLastUpdate(){
+	sum := 1
+	var erro error
+	for a := 0;a<=sum; a++{
+		if doc,err := HttpConn.GetSelect(lastUpdate + strconv.Itoa(a) + "/");err{
 			if sum == 1{
-				if sum , err = strconv.Atoi(getStringName("0/",doc.Text(),"页)")); err != nil{
+				if sum , erro = strconv.Atoi(getStringName("0/",doc.Text(),"页)")); erro != nil{
 					fmt.Println("页码获取错误")
 					//暂停循环
 					break
 				}
-			}
-			Selection.Selection = doc.Find("p")
-			Selection.Selection.Each(
-				func(_ int, selection *goquery.Selection) {
+				doc.Find("div .cover p").Each(func(_ int, selection *goquery.Selection) {
 					var sort library.Sort
-					sort.Name = v.Name
+					sort.Name = getStringName("[",selection.Text(),"]")
 					sort.Author = getStringName("/",selection.Text(),"")
 					html := selection.Find("a")
 					sort.Title = html.Text()
 					url,_ := html.Attr("href")
 					sort.Url = webUrl + url
-					info.CacheSort <- &sort
+					var DbSort library.Sort
+					if !dbmgo.Finds("Sort",bson.M{"title":sort.Title,"author":sort.Author},&DbSort){
+						CacheSort <- &sort
+					}
 				})
+			}
 		}
 	}
-	close(info.CacheSort)
-	defer Distinct()
-	return
 }
 
 //截取字符串
@@ -133,9 +169,9 @@ func getStringName(f string,text string,l string) string{
 	return text
 }
 
-func (info *Pbtxt)sortSave(){
+func sortSave(){
 	for {
-		v := <- info.CacheSort
+		v := <- CacheSort
 		dbmgo.InsertToDB("Sort",v)
 	}
 }
@@ -143,7 +179,7 @@ func (info *Pbtxt)sortSave(){
 //func bookCoverSave(){
 //	for {
 //		v := <- chanBookCover
-//		dbmgo.InsertToDB("BookCover",v)
+//		dbmgo.InsertSync("BookCover",v)
 //	}
 //}
 
@@ -152,7 +188,8 @@ func bookCoverSave(){
 	for {
 		select{
 		case v:=<- chanBookCover :
-			dbmgo.InsertToDB("BookCover",v)
+			dbmgo.InsertSync("BookCover",v)
+			countChannel <- 1
 		case a := <- coverOne:
 			go logicCover(a)
 		case b := <- coverTwo:
@@ -164,6 +201,31 @@ func bookCoverSave(){
 		}
 	}
 }
+
+//func bookCoverOne(){
+//	for {
+//		v := <- coverOne
+//		logicCover(v)
+//	}
+//}
+//func bookCoverTwo(){
+//	for {
+//		v := <- coverTwo
+//		logicCover(v)
+//	}
+//}
+//func bookCoverThree(){
+//	for {
+//		v := <- coverThree
+//		logicCover(v)
+//	}
+//}
+//func bookCoverFour(){
+//	for {
+//		v := <- coverFour
+//		logicCover(v)
+//	}
+//}
 
 //拆分数组给 channel
 func multipleThread(Sort []*library.Sort){
@@ -180,6 +242,9 @@ func multipleThread(Sort []*library.Sort){
 			break
 		}
 		sort :=Sort[start:end]
+		if len(sort) == 0 {
+			break
+		}
 		switch a {
 		case 0:
 			coverOne <- sort
@@ -196,9 +261,14 @@ func multipleThread(Sort []*library.Sort){
 		default:
 			break
 		}
-		if len(sort) == 0 {
-			break
-		}
+
+	}
+}
+//同步累计器
+func cumulation()  {
+	for{
+		v:= <-countChannel
+		countX = countX + v
 	}
 }
 
@@ -206,6 +276,11 @@ func multipleThread(Sort []*library.Sort){
 func GetCover(){
 	fmt.Println("抓取书籍封面")
 	go bookCoverSave()
+	go cumulation()
+	//go bookCoverOne()
+	//go bookCoverTwo()
+	//go bookCoverThree()
+	//go bookCoverFour()
 	count := dbmgo.Count("SortOnly")
 	pageSize := 100
 	//向上取整
@@ -214,6 +289,13 @@ func GetCover(){
 		var Sort []*library.Sort
 		dbmgo.Paginate("SortOnly",bson.M{},"-count",i,pageSize,&Sort)
 		multipleThread(Sort)
+	}
+	for {
+		//查看通道任务是否完成
+		if countX == count{
+			break
+		}
+		fmt.Println(countX)
 	}
 	defer close(coverOne)
 	defer close(coverTwo)
@@ -225,22 +307,28 @@ func GetCover(){
 //下载书籍封面
 func logicCover(Sort []*library.Sort){
 	for _,value := range Sort{
-		var bookCover library.BookCover
-		var orignalUrl library.OriginalUrl
-		doc := HttpConn.GetSelect(value.Url)
-		bookCover.Author = getStringName("",value.Author,"&")
-		bookCover.Title = value.Title
-		bookCover.Status = "连载中"
-		if coverImg ,err := doc.Find("div .block_img2 img").Attr("src");err{
-			bookCover.CoverImg = coverImg
+		if doc,err := HttpConn.TestHttpRequest(value.Url);err{
+			var bookCover library.BookCover
+			var orignalUrl library.OriginalUrl
+			bookCover.Author = getStringName("",value.Author,"&")
+			bookCover.Title = value.Title
+			bookCover.Status = "连载中"
+			if coverImg ,err := doc.Find("div .block_img2 img").Attr("src");err{
+				bookCover.CoverImg = coverImg
+			}
+			bookCover.Sort = value.Name
+			bookCover.Desc = getStringName("",doc.Find("div .intro_info").Text(),UnDesc)
+			orignalUrl.Name = value.Name
+			orignalUrl.Url = value.Url + "page-1.html"
+			bookCover.CatalogUrl = &orignalUrl
+			bookCover.Created = time.Now().Unix()
+			chanBookCover <- &bookCover
+		}else{
+			var reset []*library.Sort
+			reset = append(reset,value)
+			coverFour <- reset
+			fmt.Println("->Try again channel")
 		}
-		bookCover.Sort = value.Name
-		bookCover.Desc = getStringName("",doc.Find("div .intro_info").Text(),UnDesc)
-		orignalUrl.Name = value.Name
-		orignalUrl.Url = value.Url + "page-1.html"
-		bookCover.CatalogUrl = &orignalUrl
-		bookCover.Created = time.Now().Unix()
-		chanBookCover <- &bookCover
 	}
 }
 
