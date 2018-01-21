@@ -100,6 +100,7 @@ func (v *PbTxtLogic)GetLastUpdate(){
 					break
 				}
 			}
+			fmt.Println(a)
 			doc.Find(".line").Each(func(_ int, selection *goquery.Selection) {
 				var sort library.Sort
 				sort.Name = getStringName("[",selection.Text(),"]")
