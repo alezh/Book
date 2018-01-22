@@ -3,7 +3,7 @@ package main
 import (
 	"runtime"
 	"Book/dbmgo"
-	"Book/model"
+	"Book/PbTxt"
 )
 const (
 	WebUrl = "http://www.23us.so/top/lastupdate_"
@@ -20,13 +20,16 @@ func init(){
 }
 
 func main(){
-	var pbtxt model.PbTxtLogic
-	pbtxt.Main()
-	pbtxt.GetLastUpdate()
+	bp := new(PbTxt.BbLogic)
+	bp.Main()
+	bp.Classify()
+	//var pbtxt model.PbTxtLogic
+	//pbtxt.Main()
+	//pbtxt.GetLastUpdate()
 	//写入分类也书籍
 	//info := model.PbTxtInfo()
 	//info.GetSort()
-	//model.GetCover()
+	//model.GetChapter()
 	//for a := 1;; a++{
 	//	url := WebUrl + strconv.Itoa(a) + ".html"
 	//	model.GetPage(url)

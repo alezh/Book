@@ -15,10 +15,12 @@ var (
 type TDB_Param struct {
 	isAll    bool //是否更新全部记录
 	isInsert bool
+	isInsertAll bool
 	table    string //表名
 	search   bson.M //条件
 	stuff    bson.M //数据
 	pData    interface{}
+	apData  []interface{}
 }
 
 func _DBProcess() {
@@ -35,7 +37,9 @@ func _DBProcess() {
 		}
 		if param.isInsert {
 			err = pColl.Insert(param.pData)
-		} else if param.isAll {
+		}else if param.isInsertAll {
+			err = pColl.Insert(param.apData...)
+		}else if param.isAll {
 			_, err = pColl.UpdateAll(param.search, param.stuff)
 		} else {
 			err = pColl.Update(param.search, param.stuff)
@@ -68,3 +72,12 @@ func InsertToDB(table string, pData interface{}) {
 		pData:    pData,
 	}
 }
+
+func InsertAllToDB(table string, pData []interface{}) {
+	g_param_chan <- &TDB_Param{
+		isInsertAll: true,
+		table:    table,
+		apData:    pData,
+	}
+}
+

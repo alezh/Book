@@ -33,6 +33,7 @@ var coverFour chan []*library.Sort
 var CacheSort chan *library.Sort
 var countChannel chan int
 var countX int
+var SaveDb chan *library.SaveDb
 
 //初始化分类
 func init(){
@@ -50,6 +51,7 @@ func init(){
 	coverThree = make(chan []*library.Sort,0)
 	coverFour = make(chan []*library.Sort,0)
 	CacheSort = make(chan *library.Sort)
+	SaveDb = make(chan *library.SaveDb)
 	thread  = 4
 	UnDesc = "最新章节推荐地址"
 	countChannel = make(chan int ,1)
@@ -87,7 +89,7 @@ func (info *Pbtxt)GetSort(){
 	for _,v := range info.Sort{
 		sum := 1
 		for a := 0;a<=sum; a++{
-			if doc,err := HttpConn.GetSelect(webUrl + v.Class + strconv.Itoa(a) + ".html");err{
+			if doc,err := HttpConn.HttpRequest(webUrl + v.Class + strconv.Itoa(a) + ".html");err{
 				var Selection library.Regexh
 				if sum == 1{
 					if sum , erro = strconv.Atoi(getStringName("0/",doc.Text(),"页)")); erro != nil{
@@ -121,7 +123,7 @@ func GetLastUpdate(){
 	sum := 1
 	var erro error
 	for a := 0;a<=sum; a++{
-		if doc,err := HttpConn.GetSelect(lastUpdate + strconv.Itoa(a) + "/");err{
+		if doc,err := HttpConn.HttpRequest(lastUpdate + strconv.Itoa(a) + "/");err{
 			if sum == 1{
 				if sum , erro = strconv.Atoi(getStringName("0/",doc.Text(),"页)")); erro != nil{
 					fmt.Println("页码获取错误")
@@ -176,13 +178,6 @@ func sortSave(){
 	}
 }
 
-//func bookCoverSave(){
-//	for {
-//		v := <- chanBookCover
-//		dbmgo.InsertSync("BookCover",v)
-//	}
-//}
-
 //多线程叠加抓取 大流量 N+N
 func bookCoverSave(){
 	for {
@@ -198,34 +193,12 @@ func bookCoverSave(){
 			go logicCover(c)
 		case d := <- coverFour:
 			go logicCover(d)
+		case o:= <-SaveDb:
+			dbmgo.InsertSync(o.Table,o.Data)
+			countChannel <- 1
 		}
 	}
 }
-
-//func bookCoverOne(){
-//	for {
-//		v := <- coverOne
-//		logicCover(v)
-//	}
-//}
-//func bookCoverTwo(){
-//	for {
-//		v := <- coverTwo
-//		logicCover(v)
-//	}
-//}
-//func bookCoverThree(){
-//	for {
-//		v := <- coverThree
-//		logicCover(v)
-//	}
-//}
-//func bookCoverFour(){
-//	for {
-//		v := <- coverFour
-//		logicCover(v)
-//	}
-//}
 
 //拆分数组给 channel
 func multipleThread(Sort []*library.Sort){
@@ -277,10 +250,6 @@ func GetCover(){
 	fmt.Println("抓取书籍封面")
 	go bookCoverSave()
 	go cumulation()
-	//go bookCoverOne()
-	//go bookCoverTwo()
-	//go bookCoverThree()
-	//go bookCoverFour()
 	count := dbmgo.Count("SortOnly")
 	pageSize := 100
 	//向上取整
@@ -307,7 +276,7 @@ func GetCover(){
 //下载书籍封面
 func logicCover(Sort []*library.Sort){
 	for _,value := range Sort{
-		if doc,err := HttpConn.TestHttpRequest(value.Url);err{
+		if doc,err := HttpConn.HttpRequest(value.Url);err{
 			var bookCover library.BookCover
 			var orignalUrl library.OriginalUrl
 			bookCover.Author = getStringName("",value.Author,"&")
@@ -332,10 +301,87 @@ func logicCover(Sort []*library.Sort){
 	}
 }
 
-func logicChapter()  {
-
+//获取章节
+func GetChapter()  {
+	go bookCoverSave()
+	go cumulation()
+	count := dbmgo.Count("BookCover")
+	pageSize := 100
+	//向上取整
+	key := int(math.Ceil(float64(count)/float64(pageSize)))
+	for i:=1;i<=key;i++{
+		var bookCover []*library.BookCover
+		dbmgo.Paginate("BookCover",bson.M{},"-count",i,pageSize,&bookCover)
+		logicChapter(bookCover)
+	}
+	for {
+		//查看通道任务是否完成
+		if countX == count{
+			break
+		}
+		fmt.Println(countX)
+	}
 }
 
+//获取章节
+func logicChapter(cover []*library.BookCover){
+	for _,value := range cover{
+		var chap library.Chapter
+		Catalogs := ChapterToNodes(value.CatalogUrl.Url)
+		chap.Title = value.Title
+		chap.CoverId = value.Id
+		chap.Chapters= Catalogs
+		var Db library.SaveDb
+		Db.Table = "Catalog"
+		Db.Data = chap
+		SaveDb <- &Db
+	}
+}
+//每本的章节
+func ChapterToNodes(Url string) (Catalogs []*library.Catalog){
+	if doc,err := HttpConn.HttpRequest(Url);err{
+		sel:=doc.Find(".listpage").First().Find("option")
+		for i := range sel.Nodes {
+			single := sel.Eq(i)
+			if i > 0{
+				if u ,e :=single.Attr("value");e{
+					if docs,errs := HttpConn.HttpRequest(webUrl +u);errs{
+						docs.Find(".book_last dl dd").Each(func(_ int, selection *goquery.Selection) {
+							html:=selection.Find("a")
+							if v,b :=html.Attr("href");b{
+								var cataLog library.Catalog
+								cataLog.Url   = webUrl + v
+								cataLog.Title = getStringName("、",html.Text(),"")
+								cataLog.Content = ChapterTxt(cataLog.Url)
+								Catalogs = append(Catalogs,&cataLog)
+							}
+						})
+					}
+				}
+			}else{
+				doc.Find(".book_last dl dd").Each(func(_ int, selection *goquery.Selection) {
+					html:=selection.Find("a")
+					if v,b :=html.Attr("href");b{
+						var catlog library.Catalog
+						catlog.Url   = webUrl + v
+						catlog.Title = getStringName("、",html.Text(),"")
+						catlog.Content = ChapterTxt(catlog.Url)
+						Catalogs = append(Catalogs,&catlog)
+					}
+				})
+			}
+		}
+	}
+	return
+}
+
+func ChapterTxt(Url string)string{
+	if doc,err := HttpConn.HttpRequest(Url);err{
+		txt := doc.Find("#nr1").Text()
+		return txt
+	}
+	return ""
+}
 
 
 

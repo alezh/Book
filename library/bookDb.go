@@ -1,7 +1,16 @@
 package library
 
-//分类下的书本
+import "gopkg.in/mgo.v2/bson"
+
+//分类下的书本 (废弃)
 type Sort struct {
+	Title  string //书名
+	Author string //作者
+	Url    string //链接
+	Name   string //分类名字
+}
+//分类
+type Classify struct {
 	Title  string //书名
 	Author string //作者
 	Url    string //链接
@@ -15,6 +24,7 @@ type BookDb struct {
 }
 //书本封面属性
 type BookCover struct {
+	Id           bson.ObjectId   `bson:"_id"`
 	IndexUrl    *OriginalUrl //封面链接
 	Title        string //书名
 	Author       string //作者
@@ -25,8 +35,10 @@ type BookCover struct {
 	NewChapter   string //最新的章节
 	ChapterId    string //章节管理ID
 	Sort         string //分类
+	//Favorite     int64 //收藏数量.
+	//Hits         int64 //点击量
 	Created      int64 //创建时间戳
-	Updated      int64 //更新时间戳
+	Updated      bson.MongoTimestamp //更新时间戳
 }
 //站名与链接
 type OriginalUrl struct {
@@ -35,21 +47,28 @@ type OriginalUrl struct {
 }
 //章节
 type Chapter struct {
-	CoverId   string //书本封面ID
+	CoverId   bson.ObjectId //书本封面ID
 	Title     string //书名
 	Author    string //作者
-	Chapters []Catalog //章节
+	Chapters []*Catalog //章节
 }
-//章节目录
+//章节目录集合
 type Catalog struct {
 	CoverId   string //书架ID
-	title     string
-	Url      *OriginalUrl
+	Title     string
+	Url       string
+	Site      string
+	Content   string
 }
 //章节集合
 type ChapterTxt struct {
 	ChapterId    string //Catalog ID
 	title        string
 	Content      string
+}
+//存储数据批量插入
+type SaveDb struct {
+	Table string
+	Data []interface{}
 }
 

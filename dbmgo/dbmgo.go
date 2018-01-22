@@ -32,6 +32,17 @@ func InsertSync(table string, pData interface{}) bool {
 	return true
 }
 
+func InsertAllSync(table string, pData []interface{}) bool {
+	coll := g_database.C(table)
+	err := coll.Insert(pData...)
+	if err != nil {
+		fmt.Printf("InsertSync error: %v \r\ntable: %s \r\n", err.Error(), table)
+		return false
+	}
+	return true
+}
+
+
 func UpdateSync(table string, id, pData interface{}) bool {
 	coll := g_database.C(table)
 	err := coll.UpdateId(id, pData)
