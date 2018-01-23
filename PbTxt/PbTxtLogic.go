@@ -217,7 +217,7 @@ func (v *BbLogic)logicProcess(process []interface{}){
 		}else if b,c := value.(*library.BookCover);c{
 			Db.Table = "BookCover"
 			fmt.Println(b.Title)
-			chap := new(library.Chapter)
+			//chap := new(library.Chapter)
 			//v.SaveDb <- Db
 			Save = false
 		}
@@ -231,7 +231,7 @@ func (v *BbLogic)logicProcess(process []interface{}){
 
 }
 
-//下载书籍
+//下载书籍封面
 func (v *BbLogic)downloadCover(classify *library.Classify) (bookCover *library.BookCover , ok bool) {
 	if doc,err := HttpConn.HttpRequest(classify.Url);err{
 		var orignalUrl library.OriginalUrl
@@ -307,14 +307,16 @@ func (y *BbLogic)ChapterToNodes(){
 }
 
 func(v *BbLogic)downloadChapter(Book *library.BookCover){
-	chap := new(library.Chapter)
-	chap.Title = Book.Title
-	chap.CoverId = Book.Id
-	chap.Author = Book.Author
-	chap.Url = Book.CatalogUrl.Url
-	if doc,err := HttpConn.HttpRequest(Url);err{
-
+	//var chap []library.Chapter
+	var originalUrl []*library.OriginalUrl
+	//chap.Title = Book.Title
+	//chap.CoverId = Book.Id
+	//chap.Author = Book.Author
+	if doc,err := HttpConn.HttpRequest(Book.CatalogUrl.Url);err{
+		getChapter(doc,&originalUrl)
 	}
-	chap.Sort++
-	chap.Content= Catalogs
+	fmt.Println(originalUrl)
+	//chap.Sort++
+	//chap.Content= Catalogs
 }
+

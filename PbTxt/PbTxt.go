@@ -3,6 +3,9 @@ package PbTxt
 import (
 	"strings"
 	"bytes"
+	"github.com/PuerkitoBio/goquery"
+	"Book/HttpConn"
+	"Book/library"
 	"golang.org/x/net/html"
 )
 
@@ -21,7 +24,45 @@ type PbInset struct{
 }
 
 
+func getChapter(doc *goquery.Document,pData interface{}){
+	sel:=doc.Find(".listpage").First().Find("option")
+	var originalUrl []*library.OriginalUrl
+	for i := range sel.Nodes{
+		single := sel.Eq(i)
+		if i > 0{
+			if u ,e :=single.Attr("value");e{
+				if docs,errs := HttpConn.HttpRequest(webUrl +u);errs{
+					var orUrl library.OriginalUrl
+					docs.Find(".book_last dl dd").Each(func(_ int, selection *goquery.Selection) {
+						htmls:=selection.Find("a")
+						if v,b :=htmls.Attr("href");b{
+							orUrl.Url=v
+							originalUrl = append(originalUrl,&orUrl)
+						}
+					})
+				}
+			}
+		}else{
+			doc.Find(".book_last dl dd").Each(func(_ int, selection *goquery.Selection) {
+				htmls:=selection.Find("a")
+				if v,b :=htmls.Attr("href");b{
+					var orUrl library.OriginalUrl
+					orUrl.Url=v
+					originalUrl = append(originalUrl,&orUrl)
+				}
+			})
+		}
+	}
+	pData = originalUrl
+}
 
+func ChapterTxt(Url string)string{
+	if doc,err := HttpConn.HttpRequest(Url);err{
+		txt := doc.Find("#nr1").Text()
+		return txt
+	}
+	return ""
+}
 
 
 
