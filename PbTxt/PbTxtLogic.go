@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"github.com/PuerkitoBio/goquery"
 	"math"
+	"time"
+	"gopkg.in/mgo.v2/bson"
 )
 
 
@@ -15,85 +17,95 @@ type BbLogic struct{
 	Class []*library.Classify
 	Thread int                            //线程数量
 	UnDesc string                         //简介剔除字段
-	CoreOne chan []interface{}
-	CoreTwo chan []interface{}
+	CoreOne   chan []interface{}
+	CoreTwo   chan []interface{}
 	CoreThree chan []interface{}
-	CoreFour chan []interface{}
-	CoreFive chan []*library.Sort
-	CoreSix chan []*library.Sort
-	CoreSeven chan []*library.Sort
-	CoreEight chan []*library.Sort
-	CacheSort chan *library.Sort
-	CoreNina chan *library.Sort
+	CoreFour  chan []interface{}
+	CoreFive  chan []interface{}
+	CoreSix   chan []interface{}
+	CoreSeven chan []interface{}
+	CoreEight chan []interface{}
+	CacheSort chan []interface{}
+	CoreNina  chan []interface{}
 	SaveDb chan *library.SaveDb           //数据保存
-	Test chan []interface{}
+	SaveCD chan *library.SaveDb           //保存缓存数据
+	CacheDb map[string][]interface{}        //缓存数据
 	CountChannel chan int                 //传输完成进度
 	CountProgress int                     //完成进度
 	TotalProgress int                     //总进度
+	CacheSize int                         //sql缓存条数
+	OnlineTask map[string]int             //在线运行的模块线程
 }
-
-func init(){
+func (v *BbLogic)Main(){
+	v.CoreOne    = make(chan []interface{})
+	v.CoreTwo    = make(chan []interface{})
+	v.CoreThree  = make(chan []interface{})
+	v.CoreFour   = make(chan []interface{})
+	v.CoreFive   = make(chan []interface{})
+	v.CoreSix    = make(chan []interface{})
+	v.CoreSeven  = make(chan []interface{})
+	v.CoreEight  = make(chan []interface{})
+	v.CoreNina   = make(chan []interface{})
+	v.CacheSort  = make(chan []interface{})
+	v.SaveDb     = make(chan *library.SaveDb)
+	v.SaveCD     = make(chan *library.SaveDb)
+	v.CacheDb    = make(map[string][]interface{})
+	v.CountChannel = make(chan int )
+	v.CountProgress     = 0
+	v.TotalProgress     = 0
+	v.Thread     = 4
+	v.UnDesc     = "最新章节推荐地址"
+	v.CacheSize  = 60
+	v.OnlineTask  = make(map[string]int)
+	go v.BookCoverSave()
+	go v.cumulation()
+	return
 }
 
 //同步累计器
 func (v *BbLogic)cumulation()  {
 	for{
-		k:= <- v.CountChannel
-		v.CountProgress = v.CountProgress + k
+		select {
+		    case <- v.CountChannel:
+			    v.CountProgress ++
+		}
+
 	}
 }
 
-//多线程叠加抓取 大流量 N+N
+//多线程 N+N
 func (v *BbLogic)BookCoverSave(){
+	ticker := time.NewTicker( 20 * time.Second)
 	for {
 		select{
 		case o := <- v.SaveDb:
-			dbmgo.InsertAllSync(o.Table,o.Data)
-			 v.CountChannel <- 1
+			dbmgo.InsertAllSync(o.Table,o.Data...)
+			v.CountChannel <- 1
 		case a := <- v.CoreOne:
-			go downloadCover(a)
+			go v.logicProcess(a)
 		case b := <- v.CoreTwo:
-			go logicCover(b)
+			go v.logicProcess(b)
 		case c := <- v.CoreThree:
-			go logicCover(c)
+			go v.logicProcess(c)
 		case d := <- v.CoreFour:
-			go logicCover(d)
-		case e := <- v.CoreFive:
-			go logicCover(e)
-		case f := <- v.CoreSix:
-			go logicCover(f)
-		case g := <- v.CoreSeven:
-			go logicCover(g)
-		case h := <- v.CoreEight:
-			go logicCover(h)
+			go v.logicProcess(d)
+		//case e := <- v.CoreFive:
+		//	go v.logicProcess(e)
+		//case f := <- v.CoreSix:
+		//	go v.logicProcess(f)
+		//case g := <- v.CoreSeven:
+		//	go v.logicProcess(g)
+		//case h := <- v.CoreEight:
+		//	go v.logicProcess(h)
 		case i := <- v.CoreNina:
-			go logicCover(i)
-		case j := <- v.CacheSort:
-			go logicCover(j)
+			go v.logicProcess(i)
+		//case j := <- v.CacheSort:
+		//	go v.logicProcess(j)
+		 case <- ticker.C:
+			go v.timerToDb()
 
 		}
 	}
-}
-
-func (v *BbLogic)Main(){
-	v.CoreOne    = make(chan []interface{},100)
-	v.CoreTwo    = make(chan []interface{},70)
-	v.CoreThree  = make(chan []interface{},50)
-	v.CoreFour   = make(chan []interface{},1)
-	v.CoreFive   = make(chan []*library.Sort,1)
-	v.CoreSix    = make(chan []*library.Sort,1)
-	v.CoreSeven  = make(chan []*library.Sort,1)
-	v.CoreEight  = make(chan []*library.Sort,1)
-	v.CoreNina   = make(chan *library.Sort)
-	v.CacheSort  = make(chan *library.Sort)
-	v.SaveDb     = make(chan *library.SaveDb,1)
-	v.Test       = make(chan []interface{})
-	v.CountChannel = make(chan int )
-	v.CountProgress     = 0
-	v.TotalProgress     = 0
-	go v.BookCoverSave()
-	go v.cumulation()
-	return
 }
 
 //获取新书
@@ -111,7 +123,6 @@ func (v *BbLogic)Classify(){
 			}
 			Db := new(library.SaveDb)
 			Db.Table = "Classify"
-			var aryClass []interface{}
 			doc.Find(".line").Each(func(_ int, selection *goquery.Selection) {
 				var class library.Classify
 				class.Name = getStringNameZero("[",selection.Text(),"]")
@@ -120,13 +131,11 @@ func (v *BbLogic)Classify(){
 				class.Title = html.Text()
 				url,_ := html.Attr("href")
 				class.Url = webUrl + url
-				aryClass = append(aryClass,&class)
+				Db.Data = append(Db.Data,&class)
 			})
-			Db.Data = aryClass
-			v.SaveDb <- Db  //20写入
-			go v.Cover(aryClass)
 			v.TotalProgress ++
-			fmt.Println(v.TotalProgress)
+			v.SaveDb <- Db
+			v.multipleThread(Db.Data)
 		}else{
 			fmt.Println("Goto Try again ")
 			goto LOOK
@@ -138,13 +147,14 @@ func (v *BbLogic)Classify(){
 			break
 		}
 	}
-	fmt.Println("close")
+	fmt.Println("Classify Close")
 	return
 }
 
-//拆分数组给 channel
-func (v *BbLogic)multipleThread(Classifyes []interface{}){
-	length := len(Classifyes)
+//发送任务 拆分数组给 channel
+func (v *BbLogic)multipleThread(process []interface{}){
+	length := len(process)
+	v.TotalProgress += length //统计任务数量
 	key := int(math.Ceil(float64(length)/float64(v.Thread)))
 	for a := 0;a<v.Thread; a++{
 		start := a * key
@@ -156,7 +166,7 @@ func (v *BbLogic)multipleThread(Classifyes []interface{}){
 			fmt.Println("start > length ：" + strconv.Itoa(start))
 			break
 		}
-		sort :=Classifyes[start:end]
+		sort :=process[start:end]
 		if len(sort) == 0 {
 			break
 		}
@@ -173,6 +183,18 @@ func (v *BbLogic)multipleThread(Classifyes []interface{}){
 		case 3:
 			v.CoreFour <- sort
 			break
+		case 4:
+			v.CoreFive <- sort
+			break
+		case 5:
+			v.CoreSix <- sort
+			break
+		case 6:
+			v.CoreSeven <- sort
+			break
+		case 7:
+			v.CoreEight <- sort
+			break
 		default:
 			break
 		}
@@ -180,20 +202,119 @@ func (v *BbLogic)multipleThread(Classifyes []interface{}){
 	}
 }
 
-
-//分析书籍封面
-func (v *BbLogic)Cover(sort []interface{}){
-	for _,value := range sort {
-		if s,ok := value.(*library.Classify);ok{
-			fmt.Println(s.Url)
+//逻辑处理分配任务
+func (v *BbLogic)logicProcess(process []interface{}){
+	Db := new(library.SaveDb)
+	Save := true
+	v.TotalProgress ++ //新增消费
+	for _,value := range process {
+		if sdk,ok := value.(*library.Classify);ok{
+			//书本封面
+			Db.Table = "BookCover"
+			if value,k :=v.downloadCover(sdk);k{
+				Db.Data = append(Db.Data,value)
+			}
+		}else if b,c := value.(*library.BookCover);c{
+			Db.Table = "BookCover"
+			fmt.Println(b.Title)
+			chap := new(library.Chapter)
+			//v.SaveDb <- Db
+			Save = false
 		}
+	}
+	if Save{
+		fmt.Println("sss")
+		v.SaveDb <- Db
+	}else{
+		v.CountChannel <- 1
+	}
+
+}
+
+//下载书籍
+func (v *BbLogic)downloadCover(classify *library.Classify) (bookCover *library.BookCover , ok bool) {
+	if doc,err := HttpConn.HttpRequest(classify.Url);err{
+		var orignalUrl library.OriginalUrl
+		bookCover.Author = getStringName("",classify.Author,"&")
+		bookCover.Title = classify.Title
+		bookCover.Status = "连载中"
+		if coverImg ,err := doc.Find("div .block_img2 img").Attr("src");err{
+			bookCover.CoverImg = coverImg
+		}
+		bookCover.Sort = classify.Name
+		bookCover.Desc = getStringName("",doc.Find("div .intro_info").Text(),v.UnDesc)
+		orignalUrl.Name = classify.Name
+		orignalUrl.Url = classify.Url + "page-1.html"
+		bookCover.CatalogUrl = &orignalUrl
+		bookCover.Created = time.Now().Unix()
+		return bookCover,true
+	}else{
+		var reset []interface{}
+		reset = append(reset,classify)
+		v.CoreNina <- reset
+		fmt.Println("->Try again channel")
+		return nil,false
 	}
 }
-//下载书籍
-func downloadCover(sort []interface{})  {
-	for _,value := range sort {
-		if s,ok := value.(*library.Classify);ok{
-			fmt.Println(s.Url)
+
+//sql写入缓存
+func (y *BbLogic)cacheToDb(db *library.SaveDb){
+	if v,ok := y.CacheDb[db.Table];ok{
+		if  l:=len(v);l >= y.CacheSize {
+			//删除map缓存
+			delete(y.CacheDb,db.Table)
+			v = append(v,db.Data...)
+			dbmgo.InsertAllSync(db.Table,v...)
+			y.CountChannel <- l
+		}else{
+			//加入缓存数据
+			y.CacheDb[db.Table] = append(v,db.Data...)
 		}
+	}else{
+		//新增map缓存
+		y.CacheDb[db.Table] = db.Data
 	}
+}
+
+//定时清理没有写入的缓存sql
+func (y *BbLogic)timerToDb(){
+	//for k,v := range y.CacheDb{
+	//	if _,ok := y.OnlineTask[k];ok{
+	//		delete(y.CacheDb,k)
+	//		dbmgo.InsertAllSync(k,v...)
+	//		fmt.Println("Db Timer to mgo")
+	//	}
+	//}
+	fmt.Println(y.TotalProgress)
+}
+
+//获取章节内容
+func (y *BbLogic)ChapterToNodes(){
+	count := dbmgo.Count("BookCover")
+	pageSize := 100
+	//向上取整
+	key := int(math.Ceil(float64(count)/float64(pageSize)))
+	for i:=1;i<=key;i++{
+		var bookCover []*library.BookCover
+		var inset []interface{}
+		dbmgo.Paginate("BookCover",bson.M{},"-count",i,pageSize,&bookCover)
+		for _,p := range bookCover{
+			inset = append(inset,p)
+			y.TotalProgress ++ //新增消费
+		}
+		y.multipleThread(inset)
+	}
+}
+
+func(v *BbLogic)downloadChapter(Book *library.BookCover){
+	chap := new(library.Chapter)
+	chap.Title = Book.Title
+	chap.CoverId = Book.Id
+	chap.Author = Book.Author
+	chap.Url = Book.CatalogUrl.Url
+	if doc,err := HttpConn.HttpRequest(Url);err{
+
+	}
+	chap.Sort++
+	chap.Content= Catalogs
 }

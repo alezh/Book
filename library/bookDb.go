@@ -46,19 +46,21 @@ type OriginalUrl struct {
 	Url  string
 }
 //章节
-type Chapter struct {
-	CoverId   bson.ObjectId //书本封面ID
-	Title     string //书名
-	Author    string //作者
-	Chapters []*Catalog //章节
-}
+//type Chapter struct {
+//	CoverId   bson.ObjectId //书本封面ID
+//	Title     string //书名
+//	Author    string //作者
+//	Chapters []*Catalog //章节
+//}
 //章节目录集合
-type Catalog struct {
-	CoverId   string //书架ID
+type Chapter struct {
+	CoverId   bson.ObjectId //书架ID
 	Title     string
 	Url       string
-	Site      string
+	Author    string //作者
+	Site      string //站点
 	Content   string
+	Sort      int
 }
 //章节集合
 type ChapterTxt struct {

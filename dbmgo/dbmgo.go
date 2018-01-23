@@ -32,7 +32,7 @@ func InsertSync(table string, pData interface{}) bool {
 	return true
 }
 
-func InsertAllSync(table string, pData []interface{}) bool {
+func InsertAllSync(table string, pData ...interface{}) bool {
 	coll := g_database.C(table)
 	err := coll.Insert(pData...)
 	if err != nil {
