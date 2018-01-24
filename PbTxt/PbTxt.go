@@ -184,3 +184,7 @@ func parseTest(buf *bytes.Buffer,n *html.Node){
 		}
 	}
 }
+
+func ArrayGroup(){
+
+}

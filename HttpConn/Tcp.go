@@ -7,17 +7,27 @@ import (
 	"net/http"
 	"golang.org/x/net/html"
 	"github.com/PuerkitoBio/goquery"
-	lib "Book/library"
 	"time"
 	"golang.org/x/net/http2"
 	"crypto/tls"
 	"context"
 )
 
-type Documents struct{
-	*lib.Select
-	Node   *html.Node
+var (
+	Cache map[string]int       //报错次数
+	Error int
+)
+func init(){
+	//错误20次后放弃链接
+	Cache = make(map[string]int)
+	Error = 20
 }
+//type TcpConn struct{
+//	CacheDb map[string]int       //报错次数
+//	Error int
+//}
+
+
 
 //http conn
 func TCPConn(Url string) (html string){

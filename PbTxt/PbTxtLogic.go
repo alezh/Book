@@ -29,12 +29,16 @@ type BbLogic struct{
 	CoreNina  chan []interface{}
 	SaveDb chan *library.SaveDb           //数据保存
 	SaveCD chan *library.SaveDb           //保存缓存数据
-	CacheDb map[string][]interface{}        //缓存数据
+	CacheDb map[string][]interface{}      //缓存数据
 	CountChannel chan int                 //传输完成进度
 	CountProgress int                     //完成进度
 	TotalProgress int                     //总进度
 	CacheSize int                         //sql缓存条数
 	OnlineTask map[string]int             //在线运行的模块线程
+	WaitingSeven chan int                           //等待协程
+	WaitingEight chan int                           //等待协程
+	WaitingTimeOut chan int                           //等待协程
+
 }
 func (v *BbLogic)Main(){
 	v.CoreOne    = make(chan []interface{})
@@ -57,6 +61,9 @@ func (v *BbLogic)Main(){
 	v.UnDesc     = "最新章节推荐地址"
 	v.CacheSize  = 60
 	v.OnlineTask  = make(map[string]int)
+	v.WaitingSeven  = make(chan int)
+	v.WaitingEight  = make(chan int)
+	v.WaitingTimeOut  = make(chan int)
 	go v.BookCoverSave()
 	go v.cumulation()
 	return
@@ -69,7 +76,6 @@ func (v *BbLogic)cumulation()  {
 		    case <- v.CountChannel:
 			    v.CountProgress ++
 		}
-
 	}
 }
 
@@ -93,10 +99,10 @@ func (v *BbLogic)BookCoverSave(){
 			go v.logicProcess(e)
 		case f := <- v.CoreSix:
 			go v.logicProcess(f)
-		case g := <- v.CoreSeven:
-			go v.logicProcess(g)
-		case h := <- v.CoreEight:
-			go v.logicProcess(h)
+		//case g := <- v.CoreSeven:
+		//	go v.logicProcess(g)
+		//case h := <- v.CoreEight:
+		//	go v.logicProcess(h)
 		case i := <- v.CoreNina:
 			go v.logicProcess(i)
 		//case j := <- v.CacheSort:
@@ -201,16 +207,43 @@ func (v *BbLogic)multipleThread(process []interface{}){
 
 	}
 }
-//
-func firstThread(){
 
-}
-func doubleThread(){
-
+//协程分配
+func (v *BbLogic)doubleThread(process []interface{}){
+	length := len(process)
+	v.TotalProgress += length //统计任务数量
+	key := int(math.Ceil(float64(length)/float64(2)))
+	for a := 0;a<2; a++{
+		start := a * key
+		end := start + key
+		if end>length{
+			end = length
+		}
+		if start >length{
+			fmt.Println("start > length ：" + strconv.Itoa(start))
+			break
+		}
+		sort :=process[start:end]
+		if len(sort) == 0 {
+			break
+		}
+		switch a {
+		case 0:
+			v.singleTask(sort)
+			v.WaitingSeven<-1
+			break
+		case 1:
+			v.singleTask(sort)
+			v.WaitingEight<-1
+			break
+		default:
+			break
+		}
+	}
 }
 
 //逻辑处理分配任务
-func (v *BbLogic)logicProcess(process []interface{}){
+func (v *BbLogic)logicProcess(process ...interface{}){
 	var Db library.SaveDb
 	Save := true
 	v.TotalProgress ++ //新增消费
@@ -237,7 +270,21 @@ func (v *BbLogic)logicProcess(process []interface{}){
 	}else{
 		v.CountChannel <- 1
 	}
+}
 
+
+func (v *BbLogic)singleTask(task []interface{}){
+	for _,value := range task{
+		if b,c := value.(*library.BookCover);c{
+			var Dbs library.SaveDb
+			Dbs.Table = "Chapter"
+			value := v.downloadChapter(b)
+			if len(value)>0 {
+				Dbs.Data = value
+				v.SaveDb <- &Dbs
+			}
+		}
+	}
 }
 
 //下载书籍封面
@@ -299,46 +346,37 @@ func (y *BbLogic)timerToDb(){
 
 //获取章节内容
 func (y *BbLogic)ChapterToNodes(){
-	downChapter := time.NewTicker( 15 * time.Second)
 	count := dbmgo.Count("BookCover")
-	pageSize := 4
+	pageSize := 2
 	//向上取整
 	key := int(math.Ceil(float64(count)/float64(pageSize)))
-	i:=1
-	var x func(i int)
-	x = func(i int) {
+	for i:=1;i<=key ;i++  {
 		var bookCover []*library.BookCover
 		var inset []interface{}
 		dbmgo.Paginate("BookCover",bson.M{},"-created",i,pageSize,&bookCover)
 		for _,p := range bookCover{
 			inset = append(inset,p)
-			y.TotalProgress ++ //新增消费
 		}
-		y.multipleThread(inset)
-	}
-	for {
-		select {
-		case <-downChapter.C:
-			if i<=key{
-				x(i);i++
-			}
-		}
+		go y.doubleThread(inset)
+		<-y.WaitingSeven
+		<-y.WaitingEight
+		fmt.Println("next")
 	}
 }
 
 func(v *BbLogic)downloadChapter(Book *library.BookCover)(Chapter []interface{}){
 	var originalUrl []*library.OriginalUrl
+	LOOK:
 	if doc,err := HttpConn.HttpRequest(Book.CatalogUrl.Url);err{
 		originalUrl =getChapter(doc)
-		v.CountChannel <- 1
 	}else{
-		var reset []interface{}
-		reset = append(reset,Book)
-		v.CoreNina <- reset
-		fmt.Println("->Try again channel")
+		goto LOOK
+		//var reset []interface{}
+		//reset = append(reset,Book)
+		//go v.doubleThread(reset)
+		//fmt.Println("->Try again channel"+Book.CatalogUrl.Url)
 		return
 	}
-	v.TotalProgress ++ //新增消费
 	for _, n := range originalUrl {
 		var chap library.Chapter
 		chap.Title = Book.Title
