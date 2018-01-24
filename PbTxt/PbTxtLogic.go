@@ -89,14 +89,14 @@ func (v *BbLogic)BookCoverSave(){
 			go v.logicProcess(c)
 		case d := <- v.CoreFour:
 			go v.logicProcess(d)
-		//case e := <- v.CoreFive:
-		//	go v.logicProcess(e)
-		//case f := <- v.CoreSix:
-		//	go v.logicProcess(f)
-		//case g := <- v.CoreSeven:
-		//	go v.logicProcess(g)
-		//case h := <- v.CoreEight:
-		//	go v.logicProcess(h)
+		case e := <- v.CoreFive:
+			go v.logicProcess(e)
+		case f := <- v.CoreSix:
+			go v.logicProcess(f)
+		case g := <- v.CoreSeven:
+			go v.logicProcess(g)
+		case h := <- v.CoreEight:
+			go v.logicProcess(h)
 		case i := <- v.CoreNina:
 			go v.logicProcess(i)
 		//case j := <- v.CacheSort:
@@ -151,7 +151,7 @@ func (v *BbLogic)Classify(){
 	return
 }
 
-//发送任务 拆分数组给 channel
+//发送任务 倍数拆分数组给 channel
 func (v *BbLogic)multipleThread(process []interface{}){
 	length := len(process)
 	v.TotalProgress += length //统计任务数量
@@ -201,10 +201,17 @@ func (v *BbLogic)multipleThread(process []interface{}){
 
 	}
 }
+//
+func firstThread(){
+
+}
+func doubleThread(){
+
+}
 
 //逻辑处理分配任务
 func (v *BbLogic)logicProcess(process []interface{}){
-	Db := new(library.SaveDb)
+	var Db library.SaveDb
 	Save := true
 	v.TotalProgress ++ //新增消费
 	for _,value := range process {
@@ -215,16 +222,18 @@ func (v *BbLogic)logicProcess(process []interface{}){
 				Db.Data = append(Db.Data,value)
 			}
 		}else if b,c := value.(*library.BookCover);c{
-			Db.Table = "BookCover"
-			fmt.Println(b.Title)
-			//chap := new(library.Chapter)
-			//v.SaveDb <- Db
 			Save = false
+			var Dbs library.SaveDb
+			Dbs.Table = "Chapter"
+			value := v.downloadChapter(b)
+			if len(value)>0 {
+				Dbs.Data = value
+				v.SaveDb <- &Dbs
+			}
 		}
 	}
 	if Save{
-		fmt.Println("sss")
-		v.SaveDb <- Db
+		v.SaveDb <- &Db
 	}else{
 		v.CountChannel <- 1
 	}
@@ -290,33 +299,57 @@ func (y *BbLogic)timerToDb(){
 
 //获取章节内容
 func (y *BbLogic)ChapterToNodes(){
+	downChapter := time.NewTicker( 15 * time.Second)
 	count := dbmgo.Count("BookCover")
-	pageSize := 100
+	pageSize := 4
 	//向上取整
 	key := int(math.Ceil(float64(count)/float64(pageSize)))
-	for i:=1;i<=key;i++{
+	i:=1
+	var x func(i int)
+	x = func(i int) {
 		var bookCover []*library.BookCover
 		var inset []interface{}
-		dbmgo.Paginate("BookCover",bson.M{},"-count",i,pageSize,&bookCover)
+		dbmgo.Paginate("BookCover",bson.M{},"-created",i,pageSize,&bookCover)
 		for _,p := range bookCover{
 			inset = append(inset,p)
 			y.TotalProgress ++ //新增消费
 		}
 		y.multipleThread(inset)
 	}
+	for {
+		select {
+		case <-downChapter.C:
+			if i<=key{
+				x(i);i++
+			}
+		}
+	}
 }
 
-func(v *BbLogic)downloadChapter(Book *library.BookCover){
-	//var chap []library.Chapter
+func(v *BbLogic)downloadChapter(Book *library.BookCover)(Chapter []interface{}){
 	var originalUrl []*library.OriginalUrl
-	//chap.Title = Book.Title
-	//chap.CoverId = Book.Id
-	//chap.Author = Book.Author
 	if doc,err := HttpConn.HttpRequest(Book.CatalogUrl.Url);err{
-		getChapter(doc,&originalUrl)
+		originalUrl =getChapter(doc)
+		v.CountChannel <- 1
+	}else{
+		var reset []interface{}
+		reset = append(reset,Book)
+		v.CoreNina <- reset
+		fmt.Println("->Try again channel")
+		return
 	}
-	fmt.Println(originalUrl)
-	//chap.Sort++
-	//chap.Content= Catalogs
+	v.TotalProgress ++ //新增消费
+	for _, n := range originalUrl {
+		var chap library.Chapter
+		chap.Title = Book.Title
+		chap.CoverId = Book.Id
+		chap.Url = n.Url
+		chap.Author = Book.Author
+		chap.ChapterName = n.Name
+		chap.Content= chapterTxt(n.Url)
+		chap.Sort = n.Number
+		Chapter= append(Chapter,&chap)
+	}
+	return
 }
 

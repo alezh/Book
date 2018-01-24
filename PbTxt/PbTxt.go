@@ -7,6 +7,8 @@ import (
 	"Book/HttpConn"
 	"Book/library"
 	"golang.org/x/net/html"
+	"strconv"
+	"fmt"
 )
 
 const (
@@ -23,47 +25,61 @@ type PbInset struct{
 
 }
 
-
-func getChapter(doc *goquery.Document,pData interface{}){
+//获取章节地址拼装
+func getChapter(doc *goquery.Document)([]*library.OriginalUrl){
 	sel:=doc.Find(".listpage").First().Find("option")
 	var originalUrl []*library.OriginalUrl
 	for i := range sel.Nodes{
 		single := sel.Eq(i)
 		if i > 0{
 			if u ,e :=single.Attr("value");e{
-				if docs,errs := HttpConn.HttpRequest(webUrl +u);errs{
-					var orUrl library.OriginalUrl
+				ERROR:
+				if docs,errs := HttpConn.HttpRequest(webUrl + u);errs{
 					docs.Find(".book_last dl dd").Each(func(_ int, selection *goquery.Selection) {
-						htmls:=selection.Find("a")
-						if v,b :=htmls.Attr("href");b{
-							orUrl.Url=v
-							originalUrl = append(originalUrl,&orUrl)
-						}
+						orUrl := getUrl(selection)
+						originalUrl = append(originalUrl,&orUrl)
 					})
+				}else{
+					fmt.Println("try again goto")
+					goto ERROR
 				}
 			}
 		}else{
 			doc.Find(".book_last dl dd").Each(func(_ int, selection *goquery.Selection) {
-				htmls:=selection.Find("a")
-				if v,b :=htmls.Attr("href");b{
-					var orUrl library.OriginalUrl
-					orUrl.Url=v
-					originalUrl = append(originalUrl,&orUrl)
-				}
+				orUrl := getUrl(selection)
+				originalUrl = append(originalUrl,&orUrl)
 			})
 		}
 	}
-	pData = originalUrl
+	return originalUrl
 }
 
-func ChapterTxt(Url string)string{
+func chapterTxt(Url string)string{
+LOOK:
 	if doc,err := HttpConn.HttpRequest(Url);err{
 		txt := doc.Find("#nr1").Text()
+		txt = strings.TrimSpace(txt)
+		txt = strings.Replace(txt, "\n\n    ", "\n", -1)
+		//txt = strings.Replace(txt, "    ", "", -1)
 		return txt
+	}else{
+		fmt.Println("try again goto")
+		goto LOOK
 	}
 	return ""
 }
 
+//获取章节地址方法
+func getUrl(selection *goquery.Selection)(orUrl library.OriginalUrl){
+	htmls:=selection.Find("a")
+	if v,b :=htmls.Attr("href");b{
+		orUrl.Url= webUrl + v
+		var Number string
+		Number, orUrl.Name = beAndAf("、",htmls.Text())
+		orUrl.Number,_= strconv.Atoi(Number)
+	}
+	return
+}
 
 
 func Merge(s ...[]interface{}) (slice []interface{}) {
@@ -84,11 +100,15 @@ func Merge(s ...[]interface{}) (slice []interface{}) {
 	return
 }
 
-
-
-
-
-
+//拆分截取字符串 before and after for A
+func beAndAf(f string,text string)(before string,after string){
+	text = strings.TrimSpace(text)
+	if i := strings.Index(text,f);i>=0{
+		before = text[0:i]
+		after  = text[i+len(f):]
+	}
+	return
+}
 
 
 //0位置截取字符串
@@ -113,7 +133,6 @@ func getStringNameZero(f string,text string,l string) string{
 	}
 	return text
 }
-
 //截取字符串
 func getStringName(f string,text string,l string) string{
 	text = strings.TrimSpace(text)

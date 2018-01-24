@@ -44,6 +44,7 @@ type BookCover struct {
 type OriginalUrl struct {
 	Name string
 	Url  string
+	Number int
 }
 //章节
 //type Chapter struct {
@@ -55,10 +56,11 @@ type OriginalUrl struct {
 //章节目录集合
 type Chapter struct {
 	CoverId   bson.ObjectId //书架ID
-	Title     string
+	Title     string //书名
 	Url       string
 	Author    string //作者
 	Site      string //站点
+	ChapterName      string //章节名称
 	Content   string
 	Sort      int
 }
