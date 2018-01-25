@@ -3,6 +3,7 @@ package Thread
 import (
 	"time"
 	"Book/HttpConn"
+	"github.com/PuerkitoBio/goquery"
 )
 
 //控制网络链接数量
@@ -17,7 +18,7 @@ type MQueue struct {
 	ReduceChan    chan int
 	OnlineTask    chan map[string]interface{}
 	WrongChan     map[string]interface{}
-	SuccessChan   chan map[string]interface{}
+	SuccessChan   chan map[string]*goquery.Document
 	Queue         map[string]interface{}
 }
 
@@ -40,7 +41,7 @@ func NewMQueue(num int) *MQueue{
 	rmq.ReduceChan  = make(chan int)
 	rmq.Timer       = time.Second * 20
 	rmq.WrongChan   = make(map[string]interface{})
-	rmq.SuccessChan = make(chan map[string]interface{})
+	rmq.SuccessChan = make(chan map[string]*goquery.Document)
 	rmq.Queue       = make(map[string]interface{})
 	go rmq.counter()
 	go rmq.timerTask()
@@ -79,7 +80,7 @@ func (x *MQueue)counter()  {
 //执行任务
 func (x *MQueue)runTask(url string,method string)  {
 	if value,ok := HttpConn.HttpRequest(url);ok{
-		var m = make(map[string]interface{})
+		var m = make(map[string]*goquery.Document)
 		m[method]=value
 		x.SuccessChan <- m
 	}else{
@@ -120,3 +121,4 @@ func (x *MQueue)wrongToQueue(){
 		}
 	}
 }
+

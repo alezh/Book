@@ -3,12 +3,9 @@ package main
 import (
 	"runtime"
 	"Book/dbmgo"
-	"Book/PbTxt"
 )
 const (
 	WebUrl = "http://www.23us.so/top/lastupdate_"
-	Table = "BookInfo"
-	chapter = "Chapter"
 )
 func init() {	
     runtime.GOMAXPROCS(runtime.NumCPU()) // 多核多线程
@@ -18,15 +15,9 @@ func init() {
 
 
 func main(){
-	bp := new(PbTxt.BbLogic)
-	bp.Main()
-	bp.ChapterToNodes()
-	//var pbtxt model.PbTxtLogic
-	//pbtxt.Main()
-	//pbtxt.GetLastUpdate()
-	//写入分类也书籍
-	//info := model.PbTxtInfo()
-	//info.GetSort()
+	//bp := new(PbTxt.BbLogic)
+	//bp.Main()
+	//bp.ChapterToNodes()
 
 
 }
