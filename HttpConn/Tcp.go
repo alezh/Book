@@ -135,7 +135,7 @@ func HttpRequest(url string)(*goquery.Document ,bool) {
 	defer resp.Body.Close()
 	timer.Stop()
 	if resp.StatusCode != http.StatusOK {
-		fmt.Println("resp StatusCode:", resp.StatusCode)
+		fmt.Println("resp StatusCode:", resp.StatusCode,url)
 		return nil,false
 	}
 	doc, err := goquery.NewDocumentFromResponse(resp)

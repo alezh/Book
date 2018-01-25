@@ -371,10 +371,6 @@ func(v *BbLogic)downloadChapter(Book *library.BookCover)(Chapter []interface{}){
 		originalUrl =getChapter(doc)
 	}else{
 		goto LOOK
-		//var reset []interface{}
-		//reset = append(reset,Book)
-		//go v.doubleThread(reset)
-		//fmt.Println("->Try again channel"+Book.CatalogUrl.Url)
 		return
 	}
 	for _, n := range originalUrl {
