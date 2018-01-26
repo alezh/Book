@@ -48,6 +48,8 @@ func (pb *PbTxtModel)NewBook(){
 	}
 }
 
+
+
 //TODO::返回的数据接收数据
 func (pb *PbTxtModel)receiving(){
 
@@ -64,6 +66,9 @@ func (pb *PbTxtModel)receiving(){
 				pb.WaitGroup.Add(1)
 				go pb.getNewBook(k)
 				pb.WaitGroup.Done()
+			case "BookCover":
+
+
 			}
 		}
 	}
@@ -97,6 +102,15 @@ func (pb *PbTxtModel)getNewBook(doc *goquery.Document){
 		url,_ := html.Attr("href")
 		class.Url = pb.WebUrl + url
 		dbmgo.InsertSync("Classify",&class)
+		pb.BookCover(&class)
 	})
 	pb.WaitGroup.Done()
+}
+
+func (pb *PbTxtModel)BookCover(book *library.Classify){
+	pb.MQueue.InsertQueue(book.Url,"BookCover")
+}
+
+func (pb *PbTxtModel)getBookCover(doc *goquery.Document)  {
+	
 }
