@@ -5,7 +5,6 @@ import (
 	"Book/HttpConn"
 	"github.com/PuerkitoBio/goquery"
 	"sync"
-	"fmt"
 )
 
 //控制网络链接数量
@@ -49,18 +48,13 @@ func NewMQueue(num int , WaitGroup *sync.WaitGroup) *MQueue{
 	rmq.WaitingChan = make(chan int)
 	rmq.CounterChan = make(chan int)
 	rmq.ReduceChan  = make(chan int)
-	rmq.Timer       = time.Second * 20
+	rmq.Timer       = time.Second * 10
 	rmq.WrongChan   = make(map[string]interface{})
 	rmq.SuccessChan = make(chan map[string]*goquery.Document)
 	rmq.Queue       = make(map[string]interface{})
 	go rmq.timerTask()
 	return rmq
 }
-
-//func (x *MQueue)start(url string,method string){
-//	x.WaitGroup.Add(1)
-//	go x.runTask(url,method)
-//}
 
 //TODO::插入列队
 func (x *MQueue)InsertQueue(url string,method string){
@@ -111,6 +105,8 @@ func (x *MQueue)runTask(url string,method string)  {
 					x.WrongChan[url] = &Wrong{Count:sdk.Count+1,Method:method}
 				}
 			}
+		}else{
+			x.WrongChan[url] = &Wrong{Count:1,Method:method}
 		}
 	}
 	//TODO::连接数 --

@@ -25,17 +25,17 @@ func NewPbModel(wait *sync.WaitGroup)*PbTxtModel{
 	pb.WebUrl       = "http://m.pbtxt.com"
 	pb.LastUpUrl    = "http://m.pbtxt.com/top-lastupdate-"
 	pb.NewCreateUrl = "http://m.pbtxt.com/top-postdate-"
-	pb.MQueue       = Thread.NewMQueue(2,wait)
+	pb.MQueue       = Thread.NewMQueue(10,wait)
 	pb.NewBookPageSize       = 0
 	go pb.receiving()
 	return pb
 }
-
+//初始化 数据库 抓取书本
 func (pb *PbTxtModel)Main(){
 	pb.NewBook()
 }
 
-
+//开始获取新书
 func (pb *PbTxtModel)NewBook(){
 	if pb.NewBookPageSize == 0{
 		//获取页码
@@ -70,18 +70,6 @@ func (pb *PbTxtModel)receiving(){
 	for {
 		 value := <- pb.MQueue.SuccessChan
 		 f(value)
-
-	}
-}
-
-func (pb *PbTxtModel)logicing(m map[string]*goquery.Document){
-	for v,k := range m{
-		switch v {
-		case "setCreatePageSize":
-			pb.setCreatePageSize(k)
-		case "NewBook":
-			pb.getNewBook(k)
-		}
 	}
 }
 
