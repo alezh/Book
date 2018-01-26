@@ -53,7 +53,6 @@ func NewMQueue(num int , WaitGroup *sync.WaitGroup) *MQueue{
 	rmq.WrongChan   = make(map[string]interface{})
 	rmq.SuccessChan = make(chan map[string]*goquery.Document)
 	rmq.Queue       = make(map[string]interface{})
-	go rmq.counter()
 	go rmq.timerTask()
 	return rmq
 }
@@ -66,29 +65,20 @@ func NewMQueue(num int , WaitGroup *sync.WaitGroup) *MQueue{
 //TODO::插入列队
 func (x *MQueue)InsertQueue(url string,method string){
 	//TODO::链接数 ++
-	x.CounterChan <- 1
+	x.NewThread++
+
 	if x.NewThread > x.TotalThread{
 		//TODO::等待列队
-		fmt.Println("现有连接数",x.NewThread)
 		x.waiting()
 	}
-	//TODO::列队数 ++
+
+	//TODO::go数 ++
 	x.WaitGroup.Add(1)
 	go x.runTask(url,method)
 }
 
 func (x *MQueue)waiting(){
-
 	<- x.WaitingChan
-	//for {
-	//	if x.NewThread < x.TotalThread{
-	//		break
-	//	}
-	//	select {
-	//	case <- x.WaitingChan:
-	//		break
-	//	}
-	//}
 }
 
 //计数器
@@ -123,7 +113,8 @@ func (x *MQueue)runTask(url string,method string)  {
 			}
 		}
 	}
-	x.ReduceChan <- 1
+	//TODO::连接数 --
+	x.NewThread--
 
 	//TODO:: 列队满时候 先进先出
 	if x.NewThread >= x.TotalThread {

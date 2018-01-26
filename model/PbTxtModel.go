@@ -25,7 +25,7 @@ func NewPbModel(wait *sync.WaitGroup)*PbTxtModel{
 	pb.WebUrl       = "http://m.pbtxt.com"
 	pb.LastUpUrl    = "http://m.pbtxt.com/top-lastupdate-"
 	pb.NewCreateUrl = "http://m.pbtxt.com/top-postdate-"
-	pb.MQueue       = Thread.NewMQueue(1,wait)
+	pb.MQueue       = Thread.NewMQueue(2,wait)
 	pb.NewBookPageSize       = 0
 	go pb.receiving()
 	return pb
