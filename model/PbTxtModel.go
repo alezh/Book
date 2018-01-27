@@ -186,19 +186,20 @@ func (pb *PbTxtModel)getChapterUrl(doc *goquery.Document){
 		pb.MQueue.InsertQueue(Url.Url,"Chapter",&Url)
 	})
 }
-
+//下载章节
 func (pb *PbTxtModel)getChapter(doc *goquery.Document,ass interface{}){
 	assist,_ := ass.(*library.OriginalUrl)
 	var chap library.Chapter
 	chap.Title = assist.Title
 	chap.Url = assist.Url
 	chap.Author = assist.Author
+	chap.Site   = "pbtxt"
 	chap.ChapterName = assist.Name
-	chap.Content= pb.chapterTxt(doc.Find("#nr1").Text())
+	chap.Content = pb.chapterTxt(doc.Find("#nr1").Text())
 	chap.Sort = assist.Number
 	dbmgo.InsertSync("Chapter",&chap)
 }
-
+//截取内容
 func (pb *PbTxtModel)chapterTxt(txt string) (content string) {
 	txtX := strings.TrimSpace(txt)
 	content = strings.Replace(txtX, "\n\n    ", "\n", -1)
