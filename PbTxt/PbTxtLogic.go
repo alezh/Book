@@ -376,7 +376,7 @@ func(v *BbLogic)downloadChapter(Book *library.BookCover)(Chapter []interface{}){
 	for _, n := range originalUrl {
 		var chap library.Chapter
 		chap.Title = Book.Title
-		chap.CoverId = Book.Id
+		//chap.CoverId = Book.Id
 		chap.Url = n.Url
 		chap.Author = Book.Author
 		chap.ChapterName = n.Name

@@ -3,8 +3,8 @@ package Thread
 import (
 	"time"
 	"Book/HttpConn"
-	"github.com/PuerkitoBio/goquery"
 	"sync"
+	"github.com/PuerkitoBio/goquery"
 )
 
 //控制网络链接数量
@@ -19,7 +19,7 @@ type MQueue struct {
 	ReduceChan    chan int
 	OnlineTask    chan map[string]interface{}
 	WrongChan     map[string]interface{}
-	SuccessChan   chan map[string]*goquery.Document
+	SuccessChan   chan map[string]interface{}
 	Queue         map[string]interface{}
 	WaitGroup     *sync.WaitGroup
 }
@@ -27,6 +27,7 @@ type MQueue struct {
 type Wrong struct {
 	Method string
 	Count  int
+	Assist  interface{}
 }
 
 type ThreadsNum struct {
@@ -34,7 +35,10 @@ type ThreadsNum struct {
 	TotalThread   int
 	NewThread     int
 }
-
+type Response struct {
+	Node    *goquery.Document
+	Assist  interface{}
+}
 type Master struct {
 
 }
@@ -50,14 +54,14 @@ func NewMQueue(num int , WaitGroup *sync.WaitGroup) *MQueue{
 	rmq.ReduceChan  = make(chan int)
 	rmq.Timer       = time.Second * 10
 	rmq.WrongChan   = make(map[string]interface{})
-	rmq.SuccessChan = make(chan map[string]*goquery.Document)
+	rmq.SuccessChan = make(chan map[string]interface{})
 	rmq.Queue       = make(map[string]interface{})
 	go rmq.timerTask()
 	return rmq
 }
 
 //TODO::插入列队
-func (x *MQueue)InsertQueue(url string,method string){
+func (x *MQueue)InsertQueue(url string,method string,assist interface{}){
 	//TODO::链接数 ++
 	x.NewThread++
 
@@ -68,7 +72,7 @@ func (x *MQueue)InsertQueue(url string,method string){
 
 	//TODO::go数 ++
 	x.WaitGroup.Add(1)
-	go x.runTask(url,method)
+	go x.runTask(url,method,assist)
 }
 
 func (x *MQueue)waiting(){
@@ -87,11 +91,11 @@ func (x *MQueue)counter()  {
 	}
 }
 //执行任务
-func (x *MQueue)runTask(url string,method string)  {
+func (x *MQueue)runTask(url string,method string,assist interface{})  {
 	if value,ok := HttpConn.HttpRequest(url);ok{
 		if value != nil{
-			var m = make(map[string]*goquery.Document)
-			m[method]=value
+			var m = make(map[string]interface{})
+			m[method]= &Response{value,assist}
 			x.WaitGroup.Add(1)
 			x.SuccessChan <- m
 		}
@@ -102,7 +106,7 @@ func (x *MQueue)runTask(url string,method string)  {
 					//抛弃错误
 					delete(x.WrongChan,url)
 				}else{
-					x.WrongChan[url] = &Wrong{Count:sdk.Count+1,Method:method}
+					x.WrongChan[url] = &Wrong{Count:sdk.Count+1,Method:method,Assist:assist}
 				}
 			}
 		}else{
@@ -136,7 +140,7 @@ func (x *MQueue)wrongToQueue(){
 	for k,v := range x.WrongChan{
 		if sdk,o:= v.(*Wrong);o{
 			delete(x.WrongChan,k)
-			x.InsertQueue(k,sdk.Method)
+			x.InsertQueue(k,sdk.Method,sdk.Assist)
 		}
 	}
 }

@@ -7,15 +7,18 @@ import (
 	"Book/library"
 	"Book/dbmgo"
 	"sync"
+	"time"
+	"strings"
 )
 
 type PbTxtModel struct {
-	WebUrl         string
-	LastUpUrl      string
-	NewCreateUrl            string
-	MQueue                  *Thread.MQueue
-	NewBookPageSize         int
-	WaitGroup      *sync.WaitGroup
+	WebUrl            string
+	LastUpUrl         string
+	NewCreateUrl      string
+	UnDesc            string
+	MQueue            *Thread.MQueue
+	NewBookPageSize   int
+	WaitGroup         *sync.WaitGroup
 
 }
 
@@ -25,8 +28,9 @@ func NewPbModel(wait *sync.WaitGroup)*PbTxtModel{
 	pb.WebUrl       = "http://m.pbtxt.com"
 	pb.LastUpUrl    = "http://m.pbtxt.com/top-lastupdate-"
 	pb.NewCreateUrl = "http://m.pbtxt.com/top-postdate-"
-	pb.MQueue       = Thread.NewMQueue(10,wait)
+	pb.MQueue       = Thread.NewMQueue(20,wait)
 	pb.NewBookPageSize       = 0
+	pb.UnDesc       = "最新章节推荐地址"
 	go pb.receiving()
 	return pb
 }
@@ -39,11 +43,11 @@ func (pb *PbTxtModel)Main(){
 func (pb *PbTxtModel)NewBook(){
 	if pb.NewBookPageSize == 0{
 		//获取页码
-		pb.MQueue.InsertQueue(pb.NewCreateUrl + "1/","setCreatePageSize")
+		pb.MQueue.InsertQueue(pb.NewCreateUrl + "1/","setCreatePageSize",nil)
 		pb.NewBookPageSize = -1
 	}else if pb.NewBookPageSize > 0{
 		for a := 1;a<=pb.NewBookPageSize; a++{
-			pb.MQueue.InsertQueue(pb.NewCreateUrl + strconv.Itoa(a) + "/","NewBook")
+			pb.MQueue.InsertQueue(pb.NewCreateUrl + strconv.Itoa(a) + "/","NewBook",nil)
 		}
 	}
 }
@@ -53,22 +57,36 @@ func (pb *PbTxtModel)NewBook(){
 //TODO::返回的数据接收数据
 func (pb *PbTxtModel)receiving(){
 
-	var f func(map[string]*goquery.Document)
+	var f func(map[string]interface{})
 
-	f = func(m map[string]*goquery.Document) {
+	f = func(m map[string]interface{}) {
 		for v,k := range m{
+			value := k.(*Thread.Response)
 			switch v {
 			case "setCreatePageSize":
 				pb.WaitGroup.Add(1)
-				go pb.setCreatePageSize(k)
+				go pb.setCreatePageSize(value.Node)
 				pb.WaitGroup.Done()
 			case "NewBook":
 				pb.WaitGroup.Add(1)
-				go pb.getNewBook(k)
+				go pb.getNewBook(value.Node)
 				pb.WaitGroup.Done()
 			case "BookCover":
-
-
+				pb.WaitGroup.Add(1)
+				go pb.getBookCover(value.Node)
+				pb.WaitGroup.Done()
+			case "ChapterPage":
+				pb.WaitGroup.Add(1)
+				go pb.getChapterPage(value.Node)
+				pb.WaitGroup.Done()
+			case "getChapterUrl":
+				pb.WaitGroup.Add(1)
+				go pb.getChapterUrl(value.Node)
+				pb.WaitGroup.Done()
+			case "Chapter":
+				pb.WaitGroup.Add(1)
+				go pb.getChapter(value.Node,value.Assist)
+				pb.WaitGroup.Done()
 			}
 		}
 	}
@@ -91,7 +109,7 @@ func (pb *PbTxtModel)setCreatePageSize(h *goquery.Document)  {
 	}
 	pb.WaitGroup.Done()
 }
-
+//获取书本
 func (pb *PbTxtModel)getNewBook(doc *goquery.Document){
 	doc.Find(".line").Each(func(_ int, selection *goquery.Selection) {
 		var class library.Classify
@@ -102,15 +120,87 @@ func (pb *PbTxtModel)getNewBook(doc *goquery.Document){
 		url,_ := html.Attr("href")
 		class.Url = pb.WebUrl + url
 		dbmgo.InsertSync("Classify",&class)
-		pb.BookCover(&class)
+		//发送下载书本封面的请求
+		pb.BookCover(class.Url)
 	})
 	pb.WaitGroup.Done()
 }
+//封面
+func (pb *PbTxtModel)BookCover(url string){
+	pb.MQueue.InsertQueue(url,"BookCover",nil)
+}
+//获取封面
+func (pb *PbTxtModel)getBookCover(doc *goquery.Document)  {
+	var orignalUrl library.OriginalUrl
+	var bookCover library.SaveBookCover
+	hTitle := doc.Find("title").Text()
+	bookCover.Author = getString("(",hTitle,")_")
+	bookCover.Title = getStringName("",hTitle,"(")
+	bookCover.Status = "连载中"
+	if coverImg ,err := doc.Find("div .block_img2 img").Attr("src");err{
+		bookCover.CoverImg = coverImg
+	}
+	//bookCover.Sort = classify.Name
+	//bookCover.Desc , _ = doc.Find("meta[name=description]").Attr("content")
+	bookCover.Desc = getStringName("",doc.Find("div .intro_info").Text(),pb.UnDesc)
+	orignalUrl.Name = "pbtxt"
+	orignalUrl.Url = pb.WebUrl + doc.Url.Path + "page-1.html"
+	bookCover.CatalogUrl = &orignalUrl
+	bookCover.Created = time.Now().Unix()
+	dbmgo.InsertSync("BookCover",&bookCover)
+	pb.Chapter(orignalUrl.Url)
+	pb.WaitGroup.Done()
+}
+//章节
+func (pb *PbTxtModel)Chapter(url string){
+	pb.MQueue.InsertQueue(url,"ChapterPage",nil)
+}
+//章节分页
+func (pb *PbTxtModel)getChapterPage(doc *goquery.Document){
+	sel:=doc.Find(".listpage").First().Find("option")
 
-func (pb *PbTxtModel)BookCover(book *library.Classify){
-	pb.MQueue.InsertQueue(book.Url,"BookCover")
+	for i := range sel.Nodes{
+		single := sel.Eq(i)
+		if i > 0{
+			if u ,e :=single.Attr("value");e{
+				pb.MQueue.InsertQueue(pb.WebUrl + u,"getChapterUrl",nil)
+			}
+		}else{
+			pb.getChapterUrl(doc)
+		}
+	}
+	pb.WaitGroup.Done()
+}
+//获取章节
+func (pb *PbTxtModel)getChapterUrl(doc *goquery.Document){
+	var Url library.OriginalUrl
+	doc.Find(".book_last dl dd").Each(func(_ int, selection *goquery.Selection) {
+		orUrl := getUrl(selection)
+		hTitle := doc.Find("title").Text()
+		Url.Author = getString("(",hTitle,")_")
+		Url.Title = getStringName("",hTitle,"(")
+		Url.Name  = orUrl.Name
+		Url.Number = orUrl.Number
+		Url.Url = pb.WebUrl + orUrl.Url
+		//dbmgo.InsertSync("ChapterUrl",&Url)
+		pb.MQueue.InsertQueue(Url.Url,"Chapter",&Url)
+	})
 }
 
-func (pb *PbTxtModel)getBookCover(doc *goquery.Document)  {
-	
+func (pb *PbTxtModel)getChapter(doc *goquery.Document,ass interface{}){
+	assist,_ := ass.(*library.OriginalUrl)
+	var chap library.Chapter
+	chap.Title = assist.Title
+	chap.Url = assist.Url
+	chap.Author = assist.Author
+	chap.ChapterName = assist.Name
+	chap.Content= pb.chapterTxt(doc.Find("#nr1").Text())
+	chap.Sort = assist.Number
+	dbmgo.InsertSync("Chapter",&chap)
+}
+
+func (pb *PbTxtModel)chapterTxt(txt string) (content string) {
+	txtX := strings.TrimSpace(txt)
+	content = strings.Replace(txtX, "\n\n    ", "\n", -1)
+	return
 }
