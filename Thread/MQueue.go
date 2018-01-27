@@ -105,11 +105,13 @@ func (x *MQueue)runTask(url string,method string,assist interface{})  {
 				if sdk.Count >= 40 {
 					//抛弃错误
 					delete(x.WrongChan,url)
+					x.WaitGroup.Done()
 				}else{
 					x.WrongChan[url] = &Wrong{Count:sdk.Count+1,Method:method,Assist:assist}
 				}
 			}
 		}else{
+			x.WaitGroup.Add(1)
 			x.WrongChan[url] = &Wrong{Count:1,Method:method}
 		}
 	}
@@ -141,6 +143,7 @@ func (x *MQueue)wrongToQueue(){
 		if sdk,o:= v.(*Wrong);o{
 			delete(x.WrongChan,k)
 			x.InsertQueue(k,sdk.Method,sdk.Assist)
+			x.WaitGroup.Done()
 		}
 	}
 }

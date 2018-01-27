@@ -117,7 +117,7 @@ func HttpsRequest(url string)(*goquery.Document,bool){
 func HttpRequest(url string)(*goquery.Document ,bool) {
 	httpClient := http.Client{}
 	ctx, cancel := context.WithCancel(context.TODO())
-	timer := time.AfterFunc(5 * time.Second, func() {
+	timer := time.AfterFunc(8 * time.Second, func() {
 		fmt.Println("this url timeout " + url)
 		cancel()
 	})
@@ -136,7 +136,7 @@ func HttpRequest(url string)(*goquery.Document ,bool) {
 	timer.Stop()
 	if resp.StatusCode != http.StatusOK {
 		fmt.Println("resp StatusCode:", resp.StatusCode,url)
-		if resp.StatusCode != http.StatusNotFound{
+		if resp.StatusCode == http.StatusNotFound{
 			return nil,true
 		}
 		return nil,false

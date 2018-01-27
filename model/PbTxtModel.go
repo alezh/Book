@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 	"strings"
+	"fmt"
 )
 
 type PbTxtModel struct {
@@ -112,14 +113,14 @@ func (pb *PbTxtModel)setCreatePageSize(h *goquery.Document)  {
 //获取书本
 func (pb *PbTxtModel)getNewBook(doc *goquery.Document){
 	doc.Find(".line").Each(func(_ int, selection *goquery.Selection) {
-		var class library.Classify
+		class := new(library.Classify)
 		class.Name = getStringNameZero("[",selection.Text(),"]")
 		class.Author = getStringName("/",selection.Text(),"")
 		html := selection.Find("a")
 		class.Title = html.Text()
 		url,_ := html.Attr("href")
 		class.Url = pb.WebUrl + url
-		dbmgo.InsertSync("Classify",&class)
+		dbmgo.InsertSync("Classify",class)
 		//发送下载书本封面的请求
 		pb.BookCover(class.Url)
 	})
@@ -131,8 +132,8 @@ func (pb *PbTxtModel)BookCover(url string){
 }
 //获取封面
 func (pb *PbTxtModel)getBookCover(doc *goquery.Document)  {
-	var orignalUrl library.OriginalUrl
-	var bookCover library.SaveBookCover
+	orignalUrl := new(library.OriginalUrl)
+	bookCover := new(library.SaveBookCover)
 	hTitle := doc.Find("title").Text()
 	bookCover.Author = getString("(",hTitle,")_")
 	bookCover.Title = getStringName("",hTitle,"(")
@@ -145,9 +146,9 @@ func (pb *PbTxtModel)getBookCover(doc *goquery.Document)  {
 	bookCover.Desc = getStringName("",doc.Find("div .intro_info").Text(),pb.UnDesc)
 	orignalUrl.Name = "pbtxt"
 	orignalUrl.Url = pb.WebUrl + doc.Url.Path + "page-1.html"
-	bookCover.CatalogUrl = &orignalUrl
+	bookCover.CatalogUrl = orignalUrl
 	bookCover.Created = time.Now().Unix()
-	dbmgo.InsertSync("BookCover",&bookCover)
+	dbmgo.InsertSync("BookCover",bookCover)
 	pb.Chapter(orignalUrl.Url)
 	pb.WaitGroup.Done()
 }
@@ -173,9 +174,10 @@ func (pb *PbTxtModel)getChapterPage(doc *goquery.Document){
 }
 //获取章节
 func (pb *PbTxtModel)getChapterUrl(doc *goquery.Document){
-	var Url library.OriginalUrl
+
 	doc.Find(".book_last dl dd").Each(func(_ int, selection *goquery.Selection) {
 		orUrl := getUrl(selection)
+		Url := new(library.OriginalUrl)
 		hTitle := doc.Find("title").Text()
 		Url.Author = getString("(",hTitle,")_")
 		Url.Title = getStringName("",hTitle,"(")
@@ -183,20 +185,24 @@ func (pb *PbTxtModel)getChapterUrl(doc *goquery.Document){
 		Url.Number = orUrl.Number
 		Url.Url = pb.WebUrl + orUrl.Url
 		//dbmgo.InsertSync("ChapterUrl",&Url)
-		pb.MQueue.InsertQueue(Url.Url,"Chapter",&Url)
+		pb.MQueue.InsertQueue(Url.Url,"Chapter",Url)
 	})
 }
 //下载章节
 func (pb *PbTxtModel)getChapter(doc *goquery.Document,ass interface{}){
-	assist,_ := ass.(*library.OriginalUrl)
-	var chap library.Chapter
-	chap.Title = assist.Title
-	chap.Url = assist.Url
-	chap.Author = assist.Author
-	chap.Site   = "pbtxt"
-	chap.ChapterName = assist.Name
+	chap := new(library.Chapter)
+	if assist,ok := ass.(*library.OriginalUrl);ok{
+		chap.Title = assist.Title
+		chap.Url = assist.Url
+		chap.Author = assist.Author
+		chap.Sort = assist.Number
+		chap.ChapterName = assist.Name
+	}else {
+		fmt.Println("assist nil",pb.WebUrl + doc.Url.Path )
+	}
 	chap.Content = pb.chapterTxt(doc.Find("#nr1").Text())
-	chap.Sort = assist.Number
+	chap.Site   = "pbtxt"
+
 	dbmgo.InsertSync("Chapter",&chap)
 }
 //截取内容
