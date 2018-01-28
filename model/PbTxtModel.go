@@ -10,6 +10,8 @@ import (
 	"time"
 	"strings"
 	"fmt"
+	"math"
+	"gopkg.in/mgo.v2/bson"
 )
 
 type PbTxtModel struct {
@@ -38,6 +40,20 @@ func NewPbModel(wait *sync.WaitGroup)*PbTxtModel{
 //初始化 数据库 抓取书本
 func (pb *PbTxtModel)Main(){
 	pb.NewBook()
+}
+
+func (pb *PbTxtModel)getSqlToChapter(){
+	count := dbmgo.Count("BookCover")
+	pageSize := 4
+	//向上取整
+	key := int(math.Ceil(float64(count)/float64(pageSize)))
+	for i:=1;i<=key ;i++ {
+		bookCover :=new([]library.BookCover)
+		dbmgo.Paginate("BookCover",bson.M{},"-created",i,pageSize,bookCover)
+		for _,p := range bookCover{
+
+		}
+	}
 }
 
 //开始获取新书
