@@ -75,7 +75,7 @@ type OriginalUrl struct {
 //}
 //章节目录集合
 type Chapter struct {
-	//CoverId   bson.ObjectId //书架ID
+	CoverId   bson.ObjectId //书架ID
 	Title     string //书名
 	Url       string
 	Author    string //作者

@@ -5,6 +5,7 @@ import (
 	"Book/HttpConn"
 	"sync"
 	"github.com/PuerkitoBio/goquery"
+	"fmt"
 )
 
 //控制网络链接数量
@@ -17,10 +18,10 @@ type MQueue struct {
 	WaitingChan   chan int
 	CounterChan   chan int
 	ReduceChan    chan int
-	OnlineTask    chan map[string]interface{}
-	WrongChan     map[string]interface{}
-	SuccessChan   chan map[string]interface{}
-	Queue         map[string]interface{}
+	OnlineTask    chan map[string]*Response
+	WrongChan     map[string]*Wrong
+	SuccessChan   chan map[string]*Response
+	Queue         map[string]*Response
 	WaitGroup     *sync.WaitGroup
 }
 
@@ -53,9 +54,9 @@ func NewMQueue(num int , WaitGroup *sync.WaitGroup) *MQueue{
 	rmq.CounterChan = make(chan int)
 	rmq.ReduceChan  = make(chan int)
 	rmq.Timer       = time.Second * 10
-	rmq.WrongChan   = make(map[string]interface{})
-	rmq.SuccessChan = make(chan map[string]interface{})
-	rmq.Queue       = make(map[string]interface{})
+	rmq.WrongChan   = make(map[string]*Wrong)
+	rmq.SuccessChan = make(chan map[string]*Response)
+	rmq.Queue       = make(map[string]*Response)
 	go rmq.timerTask()
 	return rmq
 }
@@ -94,21 +95,20 @@ func (x *MQueue)counter()  {
 func (x *MQueue)runTask(url string,method string,assist interface{})  {
 	if value,ok := HttpConn.HttpRequest(url);ok{
 		if value != nil{
-			var m = make(map[string]interface{})
-			m[method]= &Response{value,assist}
+			var m = make(map[string]*Response)
+			m[method] = &Response{value,assist}
 			x.WaitGroup.Add(1)
 			x.SuccessChan <- m
 		}
 	}else{
 		if v,ok := x.WrongChan[url];ok{
-			if sdk,o:= v.(*Wrong);o{
-				if sdk.Count >= 40 {
-					//抛弃错误
-					delete(x.WrongChan,url)
-					x.WaitGroup.Done()
-				}else{
-					x.WrongChan[url] = &Wrong{Count:sdk.Count+1,Method:method,Assist:assist}
-				}
+			if v.Count >= 40 {
+				//抛弃错误
+				delete(x.WrongChan,url)
+				x.WaitGroup.Done()
+			}else{
+				x.WrongChan[url] = &Wrong{Count:v.Count+1,Method:method,Assist:assist}
+				fmt.Println(x.WrongChan[url])
 			}
 		}else{
 			x.WaitGroup.Add(1)
@@ -140,11 +140,9 @@ func (x *MQueue)timerTask(){
 //报错任务重新插入列队
 func (x *MQueue)wrongToQueue(){
 	for k,v := range x.WrongChan{
-		if sdk,o:= v.(*Wrong);o{
-			delete(x.WrongChan,k)
-			x.InsertQueue(k,sdk.Method,sdk.Assist)
-			x.WaitGroup.Done()
-		}
+		delete(x.WrongChan,k)
+		x.InsertQueue(k,v.Method,v.Assist)
+		x.WaitGroup.Done()
 	}
 }
 
