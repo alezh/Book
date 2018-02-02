@@ -157,6 +157,18 @@ func Paginate(table string, search bson.M, orderBy string, skip ,limit int, pSli
 	}
 }
 
+func PaginateNotSort(table string, search bson.M,  skip ,limit int, pSlice interface{}){
+	coll := g_database.C(table)
+	err := coll.Find(search).Skip(limit*(skip-1)).Limit(limit).All(pSlice)
+	if err != nil {
+		if err == mgo.ErrNotFound {
+			fmt.Printf("Not Find table: %s  findall: %v", table, search)
+		} else {
+			fmt.Println(err.Error())
+		}
+	}
+}
+
 
 func Aggregation(table, outTable string){
 	coll := g_database.C(table)

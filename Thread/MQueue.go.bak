@@ -6,8 +6,6 @@ import (
 	"sync"
 	"github.com/PuerkitoBio/goquery"
 	"fmt"
-	"Book/Cache"
-	"runtime"
 )
 
 //控制网络链接数量
@@ -20,7 +18,7 @@ type MQueue struct {
 	WaitingChan   chan int
 	CounterChan   chan int
 	ReduceChan    chan int
-	OnlineTask    *Cache.CacheTable
+	OnlineTask    chan map[string]*Response
 	WrongChan     map[string]*Wrong
 	SuccessChan   chan map[string]*Response
 	Queue         map[string]*Response
@@ -30,12 +28,12 @@ type MQueue struct {
 type Wrong struct {
 	Method string
 	Count  int
-	Key    string
+	Assist  interface{}
 }
 
 type Response struct {
 	Node    *goquery.Document
-	Key      string
+	Assist  interface{}
 }
 
 func NewMQueue(num int , WaitGroup *sync.WaitGroup) *MQueue{
@@ -48,31 +46,60 @@ func NewMQueue(num int , WaitGroup *sync.WaitGroup) *MQueue{
 	rmq.CounterChan = make(chan int)
 	rmq.ReduceChan  = make(chan int)
 	rmq.Timer       = time.Second * 10
-	rmq.OnlineTask  = Cache.Create("OnlineTask")
 	rmq.WrongChan   = make(map[string]*Wrong)
 	rmq.SuccessChan = make(chan map[string]*Response)
 	rmq.Queue       = make(map[string]*Response)
 	go rmq.timerTask()
-	go rmq.timer()
-	rmq.WaitGroup.Add(2)
 	return rmq
 }
 
 //TODO::插入列队
-func (x *MQueue)InsertQueue(url string,method string,cKey string){
-	//TODO::go数 ++
-	//x.WaitGroup.Add(1)
-
+func (x *MQueue)InsertQueue(url string,method string,assist interface{}){
 	//TODO::链接数 ++
 	x.NewThread++
 
 	if x.NewThread > x.TotalThread{
-		go x.counter(url,method,true)
 		//TODO::等待列队
 		x.waiting()
-		go x.counter(url,method,false)
 	}
-	go x.runTask(url,method,cKey)
+
+	//TODO::go数 ++
+	x.WaitGroup.Add(1)
+	go x.runTask(url,method,assist)
+}
+
+
+func (x *MQueue)InsertQueueSync(url string)(*goquery.Document,bool){
+	//TODO::链接数 ++
+	x.NewThread++
+
+	if x.NewThread > x.TotalThread{
+		//TODO::等待列队
+		x.waiting()
+	}
+
+	return x.runTaskSync(url)
+}
+func (x *MQueue)runTaskSync(url string) (*goquery.Document,bool) {
+	i := 0
+	LOOK:
+	if value,ok := HttpConn.HttpRequest(url);ok{
+		if value != nil{
+			//TODO::连接数 --
+			x.counter()
+			return value , true
+		}
+	}else{
+		i++
+		if i < 40{
+			goto LOOK
+		}
+		x.counter()
+		return nil , false
+	}
+	//TODO::连接数 --
+	x.counter()
+	return nil , false
 }
 
 
@@ -81,21 +108,22 @@ func (x *MQueue)waiting(){
 }
 
 //计数器
-func (x *MQueue)counter(url string,method string,k bool)  {
-	if k{
-		x.OnlineTask.Add(url,0,method)
-	}else{
-		x.OnlineTask.Delete(url)
+func (x *MQueue)counter()  {
+	//TODO::连接数 --
+	x.NewThread--
+	fmt.Println("--",x.NewThread)
+	//TODO:: 列队满时候 先进先出
+	if x.NewThread >= x.TotalThread {
+		x.WaitingChan <- 1
 	}
-	return
 }
 //执行任务
-func (x *MQueue)runTask(url string,method string,cKey string)  {
+func (x *MQueue)runTask(url string,method string,assist interface{})  {
 	if value,ok := HttpConn.HttpRequest(url);ok{
 		if value != nil{
 			var m = make(map[string]*Response)
-			m[method] = &Response{value,cKey}
-			//x.WaitGroup.Add(1)
+			m[method] = &Response{value,assist}
+			x.WaitGroup.Add(1)
 			x.SuccessChan <- m
 		}
 	}else{
@@ -103,25 +131,25 @@ func (x *MQueue)runTask(url string,method string,cKey string)  {
 			if v.Count >= 40 {
 				//抛弃错误
 				delete(x.WrongChan,url)
+				x.WaitGroup.Done()
 			}else{
-				x.WrongChan[url] = &Wrong{Count:v.Count+1,Method:method,Key:cKey}
+				x.WrongChan[url] = &Wrong{Count:v.Count+1,Method:method,Assist:assist}
+				fmt.Println(x.WrongChan[url])
 			}
 		}else{
-			//x.WaitGroup.Add(1)
+			x.WaitGroup.Add(1)
 			x.WrongChan[url] = &Wrong{Count:1,Method:method}
 		}
 	}
 	//TODO::连接数 --
 	x.NewThread--
-
-	//TODO::列队满时候 先进先出
+	fmt.Println("--",x.NewThread)
+	//TODO:: 列队满时候 先进先出
 	if x.NewThread >= x.TotalThread {
 		x.WaitingChan <- 1
 	}
 
-	//x.WaitGroup.Done()
-
-	return
+	x.WaitGroup.Done()
 }
 
 //定时任务
@@ -134,34 +162,12 @@ func (x *MQueue)timerTask(){
 		}
 	}
 }
-func (x *MQueue)timer()  {
-	timer := time.NewTicker(time.Second * 5)
-	for{
-		select {
-		case <- timer.C:
-			x.log()
-		}
-	}
-}
 
 //报错任务重新插入列队
 func (x *MQueue)wrongToQueue(){
 	for k,v := range x.WrongChan{
 		delete(x.WrongChan,k)
-		go x.InsertQueue(k,v.Method,v.Key)
-		//x.WaitGroup.Done()
-	}
-}
-
-func (x *MQueue)log(){
-	green   := string([]byte{27, 91, 57, 55, 59, 52, 50, 109})
-	reset   := string([]byte{27, 91, 48, 109})
-	blue    := string([]byte{27, 91, 57, 55, 59, 52, 52, 109})
-	fmt.Printf("Waiting task => %s %d %s | connections => %s %d %s | NumGoroutine => %s %d %s \n",green,x.OnlineTask.Count(),reset,blue,x.NewThread,reset,blue,runtime.NumGoroutine(),reset)
-	//捞出阻塞的数据
-	if x.OnlineTask.Count()>0 && x.NewThread == 0 {
-		x.WaitingChan <- 1
-	}else if x.OnlineTask.Count() == 0 && x.NewThread == 0 {
+		x.InsertQueue(k,v.Method,v.Assist)
 		x.WaitGroup.Done()
 	}
 }
