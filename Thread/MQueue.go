@@ -54,14 +54,12 @@ func NewMQueue(num int , WaitGroup *sync.WaitGroup) *MQueue{
 	rmq.Queue       = make(map[string]*Response)
 	go rmq.timerTask()
 	go rmq.timer()
-	rmq.WaitGroup.Add(2)
+	rmq.WaitGroup.Add(3)
 	return rmq
 }
 
 //TODO::插入列队
 func (x *MQueue)InsertQueue(url string,method string,cKey string){
-	//TODO::go数 ++
-	//x.WaitGroup.Add(1)
 
 	//TODO::链接数 ++
 	x.NewThread++
@@ -95,7 +93,6 @@ func (x *MQueue)runTask(url string,method string,cKey string)  {
 		if value != nil{
 			var m = make(map[string]*Response)
 			m[method] = &Response{value,cKey}
-			//x.WaitGroup.Add(1)
 			x.SuccessChan <- m
 		}
 	}else{
@@ -107,7 +104,6 @@ func (x *MQueue)runTask(url string,method string,cKey string)  {
 				x.WrongChan[url] = &Wrong{Count:v.Count+1,Method:method,Key:cKey}
 			}
 		}else{
-			//x.WaitGroup.Add(1)
 			x.WrongChan[url] = &Wrong{Count:1,Method:method}
 		}
 	}
@@ -118,8 +114,6 @@ func (x *MQueue)runTask(url string,method string,cKey string)  {
 	if x.NewThread >= x.TotalThread {
 		x.WaitingChan <- 1
 	}
-
-	//x.WaitGroup.Done()
 
 	return
 }
@@ -149,7 +143,6 @@ func (x *MQueue)wrongToQueue(){
 	for k,v := range x.WrongChan{
 		delete(x.WrongChan,k)
 		go x.InsertQueue(k,v.Method,v.Key)
-		//x.WaitGroup.Done()
 	}
 }
 
@@ -157,11 +150,13 @@ func (x *MQueue)log(){
 	green   := string([]byte{27, 91, 57, 55, 59, 52, 50, 109})
 	reset   := string([]byte{27, 91, 48, 109})
 	blue    := string([]byte{27, 91, 57, 55, 59, 52, 52, 109})
-	fmt.Printf("Waiting task => %s %d %s | connections => %s %d %s | NumGoroutine => %s %d %s \n",green,x.OnlineTask.Count(),reset,blue,x.NewThread,reset,blue,runtime.NumGoroutine(),reset)
+	online := x.OnlineTask.Count()
+	fmt.Printf("Waiting task => %s %d %s | connections => %s %d %s | NumGoroutine => %s %d %s \n",green,online,reset,blue,x.NewThread-online,reset,blue,runtime.NumGoroutine(),reset)
 	//捞出阻塞的数据
 	if x.OnlineTask.Count()>0 && x.NewThread == 0 {
 		x.WaitingChan <- 1
 	}else if x.OnlineTask.Count() == 0 && x.NewThread == 0 {
+		//循环3次 等待15秒
 		x.WaitGroup.Done()
 	}
 }

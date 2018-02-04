@@ -26,7 +26,7 @@ func main(){
 	//router.GET("/", index.Index)
 	//http.ListenAndServe(":8080", router)
 	//start := time.Now()
-	model.NewPbModel(&waitGroup).SelectBookCover()
+	model.NewPbModel(&waitGroup).Main()
 	waitGroup.Wait()
 	//bp := new(PbTxt.BbLogic)
 	//bp.Main()
