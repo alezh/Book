@@ -155,7 +155,7 @@ func (x *MQueue)log(){
 	//捞出阻塞的数据
 	if x.OnlineTask.Count()>0 && x.NewThread == 0 {
 		x.WaitingChan <- 1
-	}else if x.OnlineTask.Count() == 0 && x.NewThread == 0 {
+	}else if x.OnlineTask.Count() == 0 && x.NewThread <= 0 {
 		//循环3次 等待15秒
 		x.WaitGroup.Done()
 	}

@@ -12,6 +12,7 @@ import (
 	"Book/Cache"
 	"gopkg.in/mgo.v2/bson"
 	"math"
+	"Book/dbmysql"
 )
 
 type PbTxtModel struct {
@@ -118,18 +119,21 @@ func (pb *PbTxtModel)setCreatePageSize(h *goquery.Document)  {
 }
 //获取书本
 func (pb *PbTxtModel)getNewBook(doc *goquery.Document){
+	aryClass := make([]*library.MyClassify,0)
 	doc.Find(".line").Each(func(_ int, selection *goquery.Selection) {
-		class := new(library.Classify)
+		class := new(library.MyClassify)
 		class.Name = getStringNameZero("[",selection.Text(),"]")
 		class.Author = getStringName("/",selection.Text(),"")
 		html := selection.Find("a")
 		class.Title = html.Text()
 		url,_ := html.Attr("href")
 		class.Url = pb.WebUrl + url
-		dbmgo.InsertSync("Classify",class)
+		aryClass = append(aryClass,class)
 		//发送下载书本封面的请求
 		pb.BookCover(class.Url)
 	})
+	dbmysql.Insert(aryClass)
+	//dbmgo.InsertAllSync("Classify",aryClass)
 	return
 }
 //封面
@@ -140,8 +144,8 @@ func (pb *PbTxtModel)BookCover(url string){
 //获取封面
 func (pb *PbTxtModel)getBookCover(doc *goquery.Document)  {
 	orignalUrl := new(library.OriginalUrl)
-	bookCover := new(library.BookCover)
-	objId := bson.NewObjectId()
+	bookCover := new(library.MyBookCover)
+	//objId := bson.NewObjectId()
 	//id := getStrings("/",doc.Url.Path,"/")
 	//pb.cache.Add(id,-1,bson.NewObjectId())
 	hTitle := doc.Find("title").Text()
@@ -156,10 +160,12 @@ func (pb *PbTxtModel)getBookCover(doc *goquery.Document)  {
 	bookCover.Desc = strings.TrimSpace(desc)
 	//bookCover.Desc = getStringName("",doc.Find("div .intro_info").Text(),pb.UnDesc)
 	orignalUrl.Name = "pbtxt"
-	orignalUrl.Url = pb.WebUrl + doc.Url.Path + "page-1.html"
-	bookCover.CatalogUrl = orignalUrl
-	bookCover.Id = objId
-	dbmgo.InsertSync("BookCover",bookCover)
+	//orignalUrl.Url = pb.WebUrl + doc.Url.Path + "page-1.html"
+	//bookCover.CatalogUrl = orignalUrl
+	bookCover.CatalogUrl = pb.WebUrl + doc.Url.Path + "page-1.html"
+	//bookCover.Id = objId
+	dbmysql.Insert(bookCover)
+	//dbmgo.InsertSync("BookCover",bookCover)
 	//pb.Chapter(orignalUrl.Url)
 	return
 }
