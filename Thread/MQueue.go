@@ -150,8 +150,8 @@ func (x *MQueue)log(){
 	green   := string([]byte{27, 91, 57, 55, 59, 52, 50, 109})
 	reset   := string([]byte{27, 91, 48, 109})
 	blue    := string([]byte{27, 91, 57, 55, 59, 52, 52, 109})
-	online := x.OnlineTask.Count()
-	fmt.Printf("Waiting task => %s %d %s | connections => %s %d %s | NumGoroutine => %s %d %s \n",green,online,reset,blue,x.NewThread-online,reset,blue,runtime.NumGoroutine(),reset)
+
+	fmt.Printf("Waiting task => %s %d %s | connections => %s %d %s | NumGoroutine => %s %d %s \n",green,x.OnlineTask.Count(),reset,blue,x.NewThread-x.OnlineTask.Count(),reset,blue,runtime.NumGoroutine(),reset)
 	//捞出阻塞的数据
 	if x.OnlineTask.Count()>0 && x.NewThread == 0 {
 		x.WaitingChan <- 1

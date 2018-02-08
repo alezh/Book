@@ -160,7 +160,7 @@ func (pb *PbTxtModel)getBookCover(doc *goquery.Document)  {
 	bookCover.Desc = strings.TrimSpace(desc)
 	//bookCover.Desc = getStringName("",doc.Find("div .intro_info").Text(),pb.UnDesc)
 	orignalUrl.Name = "pbtxt"
-	//orignalUrl.Url = pb.WebUrl + doc.Url.Path + "page-1.html"
+	orignalUrl.Url = pb.WebUrl + doc.Url.Path + "page-1.html"
 	//bookCover.CatalogUrl = orignalUrl
 	bookCover.CatalogUrl = pb.WebUrl + doc.Url.Path + "page-1.html"
 	//bookCover.Id = objId
@@ -310,3 +310,5 @@ func (pb *PbTxtModel)getChapterDown(doc *goquery.Document){
 	dbmgo.InsertSync("Chapter",&chap)
 	return
 }
+
+//----------------------------------------------------------------------------------------------------------------------
