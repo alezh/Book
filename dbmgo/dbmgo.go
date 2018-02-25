@@ -115,6 +115,17 @@ func FindAll(table string, search bson.M, pSlice interface{}) {
 		}
 	}
 }
+func FindAllSort(table string, search bson.M,sortKey string ,pSlice interface{}) {
+	coll := g_database.C(table)
+	err := coll.Find(search).Sort(sortKey).All(pSlice)
+	if err != nil {
+		if err == mgo.ErrNotFound {
+			fmt.Printf("Not Find table: %s  findall: %v", table, search)
+		} else {
+			fmt.Println(err.Error())
+		}
+	}
+}
 func Find_Asc(table, key string, cnt int, pList interface{}) { //升序
 	sortKey := "+" + key
 	_find_sort(table, sortKey, cnt, pList)
@@ -196,7 +207,6 @@ func Aggregate(table string ,search []bson.M, pSlice interface{}){
 		fmt.Println(err.Error())
 	}
 }
-
 
 //func test()  {
 //	pipeline := []bson.M{

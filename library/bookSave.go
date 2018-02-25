@@ -10,10 +10,10 @@ type bookSave struct {
 }
 
 type SaveBookCover struct {
-	IndexUrl    *OriginalUrl //封面链接
 	Title        string //书名
 	Author       string //作者
-	CatalogUrl  *OriginalUrl //目录链接
+	CatalogUrl  []*OriginUrl //目录链接
+	Catalog     []bson.ObjectId //目录
 	Status       string  //已完结  连载中
 	Desc         string //简介
 	CoverImg     string //封面图片
@@ -28,13 +28,24 @@ type SaveBookCover struct {
 
 //章节目录集合
 type SaveChapter struct {
+	Id           bson.ObjectId   `bson:"_id" json:"_id"`
 	Title     string //书名
-	Url       string
 	Author    string //作者
-	Site      string //站点
+	Site      []*OriginUrl //站点
+	Group     string
 	ChapterName      string //章节名称
 	Content   string
 	Sort      int
+}
+
+type UpdateBookCover struct {
+	//Title string
+	//Author string
+	Sort string
+	Status string
+	NewChapter string
+	//CoverImg   string
+	//Desc string
 }
 
 type SaveChapterTxt struct {

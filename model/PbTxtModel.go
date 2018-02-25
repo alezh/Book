@@ -8,14 +8,14 @@ import (
 	"Book/dbmgo"
 	"sync"
 	"strings"
-	"fmt"
 	"Book/Cache"
 	"gopkg.in/mgo.v2/bson"
 	"math"
-	"Book/dbmysql"
+	"fmt"
 )
 
 type PbTxtModel struct {
+	Web               string
 	WebUrl            string
 	LastUpUrl         string
 	NewCreateUrl      string
@@ -30,10 +30,11 @@ type PbTxtModel struct {
 func NewPbModel(wait *sync.WaitGroup)*PbTxtModel{
 	pb := new(PbTxtModel)
 	pb.WaitGroup    = wait
+	pb.Web          = "http://www.pbtxt.com"
 	pb.WebUrl       = "http://m.pbtxt.com"
 	pb.LastUpUrl    = "http://m.pbtxt.com/top-lastupdate-"
 	pb.NewCreateUrl = "http://m.pbtxt.com/top-postdate-"
-	pb.MQueue       = Thread.NewMQueue(20,wait)
+	pb.MQueue       = Thread.NewMQueue(20,wait,"utf8")
 	pb.NewBookPageSize       = 0
 	pb.UnDesc       = "最新章节推荐地址"
 	pb.cache        = Cache.Create("pbtxt")
@@ -119,9 +120,11 @@ func (pb *PbTxtModel)setCreatePageSize(h *goquery.Document)  {
 }
 //获取书本
 func (pb *PbTxtModel)getNewBook(doc *goquery.Document){
-	aryClass := make([]*library.MyClassify,0)
+	//aryClass := make([]*library.MyClassify,0)
+	aryClass := make([]interface{},0)
 	doc.Find(".line").Each(func(_ int, selection *goquery.Selection) {
-		class := new(library.MyClassify)
+		//class := new(library.MyClassify)
+		class := new(library.Classify)
 		class.Name = getStringNameZero("[",selection.Text(),"]")
 		class.Author = getStringName("/",selection.Text(),"")
 		html := selection.Find("a")
@@ -132,8 +135,8 @@ func (pb *PbTxtModel)getNewBook(doc *goquery.Document){
 		//发送下载书本封面的请求
 		pb.BookCover(class.Url)
 	})
-	dbmysql.Insert(aryClass)
-	//dbmgo.InsertAllSync("Classify",aryClass)
+	//dbmysql.Insert(aryClass)
+	dbmgo.InsertAllSync("Classify",aryClass...)
 	return
 }
 //封面
@@ -143,8 +146,8 @@ func (pb *PbTxtModel)BookCover(url string){
 }
 //获取封面
 func (pb *PbTxtModel)getBookCover(doc *goquery.Document)  {
-	orignalUrl := new(library.OriginalUrl)
-	bookCover := new(library.MyBookCover)
+	orignalUrl := new(library.OriginUrl)
+	bookCover := new(library.SaveBookCover)
 	//objId := bson.NewObjectId()
 	//id := getStrings("/",doc.Url.Path,"/")
 	//pb.cache.Add(id,-1,bson.NewObjectId())
@@ -156,19 +159,20 @@ func (pb *PbTxtModel)getBookCover(doc *goquery.Document)  {
 		bookCover.CoverImg = coverImg
 	}
 	desc ,_:= doc.Find("meta[name=description]").Attr("content")
-	//bookCover.Sort = classify.Name
 	bookCover.Desc = strings.TrimSpace(desc)
 	//bookCover.Desc = getStringName("",doc.Find("div .intro_info").Text(),pb.UnDesc)
 	orignalUrl.Name = "pbtxt"
 	orignalUrl.Url = pb.WebUrl + doc.Url.Path + "page-1.html"
-	//bookCover.CatalogUrl = orignalUrl
-	bookCover.CatalogUrl = pb.WebUrl + doc.Url.Path + "page-1.html"
+	bookCover.CatalogUrl = append(bookCover.CatalogUrl,orignalUrl)
+	//bookCover.CatalogUrl = pb.WebUrl + doc.Url.Path + "page-1.html"
 	//bookCover.Id = objId
-	dbmysql.Insert(bookCover)
-	//dbmgo.InsertSync("BookCover",bookCover)
+	//dbmysql.Insert(bookCover)
+	dbmgo.InsertSync("BookCover",bookCover)
 	//pb.Chapter(orignalUrl.Url)
 	return
 }
+
+
 //章节
 func (pb *PbTxtModel)Chapter(url string){
 	pb.MQueue.InsertQueue(url,"ChapterPage","")
@@ -245,13 +249,13 @@ func (pb *PbTxtModel)SelectBookCover(){
 	//向上取整
 	key := int(math.Ceil(float64(count)/float64(pageSize)))
 	for i:=1;i<=key ;i++ {
-		var bookCover []library.BookCover
+		var bookCover []library.Books
 		dbmgo.PaginateNotSort("BookCover",bson.M{},i,pageSize,&bookCover)
-		for _,p := range bookCover{
-			id := getStrings("com/",p.CatalogUrl.Url,"/")
-			pb.cache.Add(id,-1,p.Id)
-			pb.MQueue.InsertQueue(p.CatalogUrl.Url,"ChapterPageDown","")
-		}
+		//for _,p := range bookCover{
+		//	id := getStrings("com/",p.CatalogUrl.Url,"/")
+		//	pb.cache.Add(id,-1,p.Id)
+		//	//pb.MQueue.InsertQueue(p.CatalogUrl.Url,"ChapterPageDown","")
+		//}
 	}
 }
 func (pb *PbTxtModel)ChapterPageDown(doc *goquery.Document){

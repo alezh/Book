@@ -24,11 +24,11 @@ type BookDb struct {
 }
 //书本封面属性
 type BookCover struct {
-	Id           bson.ObjectId   `bson:"_id"`
-	IndexUrl    *OriginalUrl //封面链接
+	Id           bson.ObjectId   `bson:"_id" json:"_id"`
 	Title        string //书名
 	Author       string //作者
-	CatalogUrl  *OriginalUrl //目录链接
+	CatalogUrl  []*OriginUrl //目录链接
+	Catalog     []bson.ObjectId //目录
 	Status       string  //已完结  连载中
 	Desc         string //简介
 	CoverImg     string //封面图片
@@ -41,6 +41,13 @@ type BookCover struct {
 	Updated      bson.MongoTimestamp //更新时间戳
 }
 
+type OriginUrl struct {
+	Name string
+	Url  string
+}
+type CatalogUrl struct {
+	CatalogUrl  []*OriginUrl //目录链接
+}
 
 //站名与链接
 type OriginalUrl struct {
@@ -51,12 +58,14 @@ type OriginalUrl struct {
 	Number int
 }
 //章节
-//type Chapter struct {
-//	CoverId   bson.ObjectId //书本封面ID
-//	Title     string //书名
-//	Author    string //作者
-//	Chapters []*Catalog //章节
-//}
+type Books struct {
+	Id           bson.ObjectId   `bson:"_id" json:"_id"`
+	Title     string //书名
+	Author    string //作者
+	CatalogUrl  []*OriginUrl //目录链接
+	//Catalog     []bson.ObjectId //目录
+	Desc      string
+}
 //章节目录集合
 type Chapter struct {
 	CoverId   bson.ObjectId //书架ID

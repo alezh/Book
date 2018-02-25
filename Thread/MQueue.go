@@ -15,7 +15,8 @@ import (
 type MQueue struct {
 	TotalThread   int
 	Waiting       int
-	NewThread       int
+	NewThread     int
+	encoded       string
 	Timer         time.Duration
 	WaitingChan   chan int
 	CounterChan   chan int
@@ -38,12 +39,13 @@ type Response struct {
 	Key      string
 }
 
-func NewMQueue(num int , WaitGroup *sync.WaitGroup) *MQueue{
+func NewMQueue(num int , WaitGroup *sync.WaitGroup, encoded string) *MQueue{
 	rmq := new(MQueue)
 	rmq.TotalThread = num      //链接总数
 	rmq.WaitGroup = WaitGroup
 	rmq.NewThread   = 0        //现有棕色
 	rmq.Waiting     = 0
+	rmq.encoded     = encoded
 	rmq.WaitingChan = make(chan int)
 	rmq.CounterChan = make(chan int)
 	rmq.ReduceChan  = make(chan int)
@@ -89,7 +91,7 @@ func (x *MQueue)counter(url string,method string,k bool)  {
 }
 //执行任务
 func (x *MQueue)runTask(url string,method string,cKey string)  {
-	if value,ok := HttpConn.HttpRequest(url);ok{
+	if value,ok := HttpConn.HttpRequest(url,x.encoded);ok{
 		if value != nil{
 			var m = make(map[string]*Response)
 			m[method] = &Response{value,cKey}
@@ -153,7 +155,7 @@ func (x *MQueue)log(){
 
 	fmt.Printf("Waiting task => %s %d %s | connections => %s %d %s | NumGoroutine => %s %d %s \n",green,x.OnlineTask.Count(),reset,blue,x.NewThread-x.OnlineTask.Count(),reset,blue,runtime.NumGoroutine(),reset)
 	//捞出阻塞的数据
-	if x.OnlineTask.Count()>0 && x.NewThread == 0 {
+	if x.OnlineTask.Count()>0 && x.NewThread <= 0 {
 		x.WaitingChan <- 1
 	}else if x.OnlineTask.Count() == 0 && x.NewThread <= 0 {
 		//循环3次 等待15秒
