@@ -45,10 +45,10 @@ func Router() *httprouter.Router{
 	var index controller.Index
 	var chapter controller.Chapter
 	router := httprouter.New()
-	router.GET("/Create/:os", index.Create)
-	router.GET("/Save/:id/:book", bookRack.Save)
-	router.GET("/Books/:id", bookRack.List)
-	router.GET("/ChapterList/:bookId/:Site", chapter.ChapterList)
-	router.GET("/Chapter/:chapterId", chapter.GetChapter)
+	router.OPTIONS("/Create/:os", index.Create)
+	router.OPTIONS("/Save/:id/:book", bookRack.Save)
+	router.OPTIONS("/Books/:id", bookRack.List)
+	router.OPTIONS("/ChapterList/:bookId/:Site", chapter.ChapterList)
+	router.OPTIONS("/Chapter/:chapterId", chapter.GetChapter)
 	return router
 }

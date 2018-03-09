@@ -35,6 +35,6 @@ type Origin struct {
 	Url  string
 }
 type Content struct {
-	ChapterName string //章节名称
-	Content string
+	ChapterName string `json:"title"`//章节名称
+	Content string  `json:"body"`
 }

@@ -53,6 +53,10 @@ type SaveChapterTxt struct {
 	Content      string
 }
 
+type UpChapterTxt struct {
+	Content      string
+}
+
 type MyBookCover struct {
 	Id           int       `xorm:"not null pk autoincr INT(11)"`
 	Title        string    `xorm:"not null VARCHAR(255)"`     //书名

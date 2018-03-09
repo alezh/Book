@@ -12,6 +12,9 @@ type JSON struct {
 var jsonContentType = []string{"application/json; charset=utf-8"}
 
 func Render(w http.ResponseWriter,Data interface{},error string,msg string) (err error) {
+	w.Header().Add("Access-Control-Allow-Origin", "*")
+	w.Header().Add("Access-Control-Allow-Methods", "*")
+	w.Header().Add("Access-Control-Allow-Headers", "Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With")
 	if err = WriteJSON(w, Data,error,msg); err != nil {
 		panic(err)
 	}

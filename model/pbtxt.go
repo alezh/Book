@@ -61,16 +61,14 @@ func (pb *PbTxt)receiving(){
 			switch v {
 			case "newBook":
 				go pb.newBook(k.Node)
-				break
 			case "GetBook":
 				go pb.getBook(k.Node)
-				break
 			case "BookCover":
 				go pb.bookCover(k.Node)
-				break
+			case "getChapterDown":
+				go pb.getChapterDown(k.Node)
 			default:
 				fmt.Println("数据丢失",v)
-				break
 			}
 		}
 	}
@@ -164,4 +162,31 @@ func (pb *PbTxt)bookCover(h *goquery.Document){
 		dbmgo.InsertAllSync("Chapter",aryClass...)
 	}
 	dbmgo.InsertSync("BookCover",bookCover)
+}
+
+//获取章节内容
+func (pb *PbTxt)GetChapter(bookId string){
+	Catalog := new(library.Catalog)
+	Chapter := make([]library.SaveChapter,0)
+	where := bson.M{"_id":bson.ObjectIdHex(bookId)}
+	dbmgo.Finds("BookCover",where,Catalog)
+	whereIn := bson.M{"_id": bson.M{"$in": Catalog.Catalog}}
+	dbmgo.FindAllSort("Chapter",whereIn,"+sort",&Chapter)
+	for _,v := range Chapter {
+		pb.cache.Add(v.Site[0].Url,-1,v.Id)
+		pb.MQueue.InsertQueue(v.Site[0].Url,"getChapterDown","")
+	}
+}
+func (pb *PbTxt)getChapterDown(h *goquery.Document){
+	if value,err :=pb.cache.Value(pb.WapWeb +h.Url.Path);err==nil{
+		txt := h.Find("#nr1").Text()
+		txtX := strings.TrimSpace(txt)
+		content := new(library.UpChapterTxt)
+		content.Content = strings.Replace(txtX, "\n\n    ", "\n", -1)
+		update := bson.M{"$set":content}
+		//fmt.Println(value.Data().(bson.ObjectId),update)
+		dbmgo.UpdateSync("Chapter",value.Data().(bson.ObjectId),update)
+	}
+
+
 }

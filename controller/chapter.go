@@ -17,15 +17,15 @@ func (c *Chapter)GetChapter(w http.ResponseWriter, r *http.Request, params httpr
 	chapterId := params.ByName("chapterId")
 	//siteName := params.ByName("Site")
 	Content :=new(library.Content)
-	dbmgo.Find("BookCover","_id",bson.ObjectIdHex(chapterId),Content)
+	dbmgo.Find("Chapter","_id",bson.ObjectIdHex(chapterId),Content)
 	library.Render(w,Content,"","")
 }
 //获取章节列表
 func (c *Chapter)ChapterList(w http.ResponseWriter, r *http.Request, params httprouter.Params){
 	bookId := params.ByName("bookId")
 	siteName := params.ByName("Site")
-	Catalog :=new(library.Catalog)
-	Chapter :=make([]library.ChapterList,0)
+	Catalog := new(library.Catalog)
+	Chapter := make([]library.ChapterList,0)
 	where := bson.M{"_id":bson.ObjectIdHex(bookId)}
 	dbmgo.Finds("BookCover",where,Catalog)
 	for k,v:=range Catalog.Site{
