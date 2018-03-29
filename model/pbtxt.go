@@ -45,14 +45,16 @@ func (pb *PbTxt)init(){
 		//向上取整
 		key := int(math.Ceil(float64(count)/float64(pageSize)))
 		for i:=1;i<=key ;i++ {
-			bookCover := make([]library.Books,0)
+			bookCover := make([]library.BooksCache,0)
 			dbmgo.PaginateNotSort("BookCover",bson.M{},i,pageSize,&bookCover)
 			for _,p := range bookCover{
-				pb.public.Add(p.Author+p.Title,-1,p)
+				value := library.ValueCache{Id:p.Id,Title:p.Title,Author:p.Author,CatalogUrl:p.CatalogUrl,Catalog:len(p.Catalog),Desc:p.Desc}
+				pb.public.Add(p.Author+p.Title,-1,value)
 			}
 		}
 	}
 }
+
 func (pb *PbTxt)receiving(){
 	var f func(map[string]*Thread.Response)
 
@@ -67,6 +69,8 @@ func (pb *PbTxt)receiving(){
 				go pb.bookCover(k.Node)
 			case "getChapterDown":
 				go pb.getChapterDown(k.Node)
+			case "UpdateChapter":
+				go pb.UpdateChapter(k.Node)
 			default:
 				fmt.Println("数据丢失",v)
 			}
@@ -99,7 +103,7 @@ func (pb *PbTxt)getBook(h *goquery.Document){
 		url,_ := html.Attr("href")
 		if value,err := pb.public.Value(Author + Title);err == nil{
 			key := false
-			for _,v := range value.Data().(library.Books).CatalogUrl {
+			for _,v := range value.Data().(library.ValueCache).CatalogUrl {
 				if v.Name == "pbtxt" {
 					key = true
 				}
@@ -109,8 +113,9 @@ func (pb *PbTxt)getBook(h *goquery.Document){
 				orignalUrl.Name = "pbtxt"
 				orignalUrl.Url  = pb.Web + url
 				update := bson.M{"$push":bson.M{"catalogurl":orignalUrl}}
-				dbmgo.UpdateSync("BookCover",value.Data().(library.Books).Id,update)
+				dbmgo.UpdateSync("BookCover",value.Data().(library.ValueCache).Id,update)
 			}
+			pb.MQueue.InsertQueue(pb.Web + url,"UpdateChapter","")
 		}else{
 			pb.MQueue.InsertQueue(pb.Web + url,"BookCover","")
 		}
@@ -163,6 +168,45 @@ func (pb *PbTxt)bookCover(h *goquery.Document){
 	}
 	dbmgo.InsertSync("BookCover",bookCover)
 }
+//更新章节
+func (pb *PbTxt)UpdateChapter(h *goquery.Document){
+	Author,_ := h.Find("meta[name$=author]").Attr("content")
+	Title ,_ := h.Find("meta[property$=title]").Attr("content")
+	if value,err := pb.public.Value(Author + Title);err == nil{
+		//获取章节
+		aryClass := make([]interface{},0)
+		Catalog  := make([]bson.ObjectId,0)
+		group := ""
+		h.Find("dt,dd").Each(func(i int, selection *goquery.Selection){
+			if x := strings.LastIndex(selection.Text(),"》");x>=0{
+				group = selection.Text()
+			}else{
+				chapter := new(library.SaveChapter)
+				Url := new(library.OriginUrl)
+				objId := bson.NewObjectId()
+				chapter.Id = objId
+				chapter.Sort = i+1
+				Url.Name = "pbtxt"
+				if cUrl,k :=selection.Find("a").Attr("href");k{
+					Url.Url  = pb.WapWeb +h.Url.Path + cUrl
+				}
+				chapter.Author = Author
+				chapter.Title  = Title
+				chapter.Group  = group
+				chapter.ChapterName = selection.Text()
+				chapter.Site = append(chapter.Site,Url)
+				aryClass = append(aryClass,chapter)
+				Catalog = append(Catalog,objId)
+			}
+		})
+		if len(aryClass)>0{
+			dbmgo.InsertAllSync("Chapter",aryClass...)
+		}
+		update := bson.M{"$push":bson.M{"Catalog":Catalog}}
+		dbmgo.UpdateSync("BookCover",value.Data().(library.ValueCache).Id,update)
+	}
+}
+
 
 //获取章节内容
 func (pb *PbTxt)GetChapter(bookId string){
