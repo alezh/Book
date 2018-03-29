@@ -93,3 +93,20 @@ type BookCache struct {
 	Title        string
 	Author       string
 }
+
+type BooksCache struct {
+	Id           bson.ObjectId   `bson:"_id" json:"_id"`
+	Title     string //书名
+	Author    string //作者
+	CatalogUrl  []*OriginUrl //目录链接
+	Catalog     []bson.ObjectId //目录
+	Desc      string
+}
+type ValueCache struct {
+	Id        bson.ObjectId   `bson:"_id" json:"_id"`
+	Title     string //书名
+	Author    string //作者
+	CatalogUrl  []*OriginUrl //目录链接
+	Catalog     int //目录
+	Desc      string
+}

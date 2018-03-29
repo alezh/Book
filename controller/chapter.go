@@ -19,6 +19,7 @@ func (c *Chapter)GetChapter(w http.ResponseWriter, r *http.Request, params httpr
 	Content :=new(library.Content)
 	dbmgo.Find("Chapter","_id",bson.ObjectIdHex(chapterId),Content)
 	library.Render(w,Content,"","")
+	return
 }
 //获取章节列表
 func (c *Chapter)ChapterList(w http.ResponseWriter, r *http.Request, params httprouter.Params){

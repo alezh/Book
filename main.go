@@ -7,6 +7,8 @@ import (
 	"Book/dbmgo"
 	"sync"
 	"net/http"
+	"Book/model"
+	"fmt"
 )
 const (
 	WebUrl = "http://www.23us.so/top/lastupdate_"
@@ -24,8 +26,10 @@ var (
 )
 
 func main(){
+	go Gather()
 	router := Router()
 	http.ListenAndServe(":8080", router)
+<<<<<<< HEAD
 	//start := time.Now()
 	//model.NewPbModel(&waitGroup).Main()
 	//model.NewPbTxt(&waitGroup).GetChapter("5a87ef36324b63d7e9bc990f")
@@ -38,6 +42,8 @@ func main(){
 	//bp.ChapterToNodes()
 	//fmt.Println(bookCover[0].Id.Hex())
 	//fmt.Printf("longCalculation took this amount of time: %s\n", time.Now().Sub(start))
+=======
+>>>>>>> bf15272f9c51004c082d865d36f7b5c5f0581bcf
 
 }
 
@@ -52,4 +58,19 @@ func Router() *httprouter.Router{
 	router.OPTIONS("/ChapterList/:bookId/:Site", chapter.ChapterList)
 	router.OPTIONS("/Chapter/:chapterId", chapter.GetChapter)
 	return router
+}
+
+func Gather(){
+	//start := time.Now()
+	//model.NewPbModel(&waitGroup).Main()
+	model.NewPbTxt(&waitGroup).Main()
+	//model.NewXus(&waitGroup).Main()
+	//model.NewXus(&waitGroup).UpdateBookCover()
+	waitGroup.Wait()
+	fmt.Print("采集完毕")
+	//bp := new(PbTxt.BbLogic)
+	//bp.Main()
+	//bp.ChapterToNodes()
+	//fmt.Println(bookCover[0].Id.Hex())
+	//fmt.Printf("longCalculation took this amount of time: %s\n", time.Now().Sub(start))
 }
