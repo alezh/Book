@@ -231,6 +231,12 @@ func (pb *PbTxt)getChapterDown(h *goquery.Document){
 		//fmt.Println(value.Data().(bson.ObjectId),update)
 		dbmgo.UpdateSync("Chapter",value.Data().(bson.ObjectId),update)
 	}
+}
 
-
+func (pb *PbTxt)Download()  {
+	if pb.public.Count() > 0 {
+		pb.public.Foreach(func(key interface{}, item *Cache.CacheItem) {
+			pb.GetChapter(item.Data().(library.ValueCache).Id.Hex())
+		})
+	}
 }

@@ -7,8 +7,8 @@ import (
 	"Book/dbmgo"
 	"sync"
 	"net/http"
-	"Book/model"
 	"fmt"
+	"Book/model"
 )
 const (
 	WebUrl = "http://www.23us.so/top/lastupdate_"
@@ -47,7 +47,8 @@ func Router() *httprouter.Router{
 func Gather(){
 	//start := time.Now()
 	//model.NewPbModel(&waitGroup).Main()
-	model.NewPbTxt(&waitGroup).Main()
+	//model.NewPbTxt(&waitGroup).Main()
+	model.NewPbTxt(&waitGroup).Download()
 	//model.NewXus(&waitGroup).Main()
 	//model.NewXus(&waitGroup).UpdateBookCover()
 	waitGroup.Wait()
