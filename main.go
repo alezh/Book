@@ -48,7 +48,7 @@ func Gather(){
 	//start := time.Now()
 	//model.NewPbModel(&waitGroup).Main()
 	model.NewPbTxt(&waitGroup).Main()
-	model.NewPbTxt(&waitGroup).Download()
+	//model.NewPbTxt(&waitGroup).Download()
 	//model.NewXus(&waitGroup).Main()
 	//model.NewXus(&waitGroup).UpdateBookCover()
 	waitGroup.Wait()
